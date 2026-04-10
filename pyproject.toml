@@ -1,0 +1,45 @@
+[tool.black]
+line-length = 100
+target-version = ["py312"]
+
+[tool.flake8]
+max-line-length = 100
+exclude = [
+    ".git",
+    "__pycache__",
+    ".venv",
+    "venv",
+    "build",
+    "dist",
+]
+ignore = [
+    "E203",  # whitespace before ':'
+    "E501",  # line too long (handled by black)
+    "W503",  # line break before binary operator
+]
+per-file-ignores = [
+    "__init__.py:F401",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py312"
+
+[tool.ruff.lint]
+# Sélection des règles : E (erreurs de style), F (erreurs de logique), I (imports)
+select = ["E", "F", "I"]
+ignore = []
+
+# Organisation des imports (équivalent à isort)
+[tool.ruff.lint.isort]
+known-first-party = ["mon_projet"]
+combine-as-imports = true
+force-single-line = false
+
+# Pyupgrade : modernise le code pour la version cible
+[tool.ruff.lint.pyupgrade]
+keep-runtime-typing = false
+
+# Détection des variables inutilisées
+[tool.ruff.lint.per-file-ignores]
+"__init__.py" = ["F401"]  # ignore les imports non utilisés dans __init__.py
