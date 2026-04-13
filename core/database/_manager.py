@@ -240,22 +240,23 @@ class DatabaseManager:
             "backup_retention": "general",
             "APP_MODE": "display",
             "COFFRE_TOTAL": "financial",
-            "DAILY_RESET_PENDING": "general",
-            "LAST_CLOSED_DATE": "general",
         }
         category_key = category_map.get(key, "general")
 
-        try:
-            self.settings.set_item(
-                key=key,
-                value=value,
-                value_type=value_type,
-                description=description,
-                category_key=category_key,
-            )
-        except ValueError:
-            # Fallback to legacy
-            self._params.set(key, value, description)
+        self.settings.set_item(
+            key=key,
+            value=value,
+            value_type=value_type,
+            description=description,
+            category_key=category_key,
+            is_sensitive=key.startswith("USER_PASSWORD_"),
+        )
+
+    def delete_parameter(self, key: str) -> None:
+        """Delete a parameter."""
+        self.settings.delete_item(key)
+
+
 
     def get_tax(self, default: float = 20.0) -> float:
         return self.financial.get_tva_rate(default)
@@ -277,6 +278,70 @@ class DatabaseManager:
 
     def verify_user_registration_code(self, operateur_id: int, code: str) -> bool:
         return self.auth.verify_user_registration_code(operateur_id, code)
+
+    # === User Management ===
+
+    def get_users(self) -> list[dict]:
+        """Get all active users."""
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT id, nom as username FROM operateurs WHERE actif = 1 ORDER BY nom"
+            )
+            return [{"id": row[0], "username": row[1]} for row in cursor.fetchall()]
+
+    def add_user(self, username: str, hashed_password: str) -> int | None:
+        """Add a new user."""
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "INSERT INTO operateurs (nom, droit_acces, actif) VALUES (?, 'user', 1)",
+                (username,)
+            )
+            user_id = cursor.lastrowid
+            conn.commit()
+        # Store password in parameters (separate transaction)
+        if user_id:
+            desc = f"Password for user {username}"
+            self.set_parameter(f"USER_PASSWORD_{user_id}", hashed_password, desc)
+        return user_id
+
+    def update_user(
+        self, user_id: int, new_username: str, new_hashed_password: str | None = None
+    ) -> None:
+        """Update user information."""
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE operateurs SET nom = ? WHERE id = ?",
+                (new_username, user_id)
+            )
+            conn.commit()
+        if new_hashed_password:
+            desc = f"Password for user {new_username}"
+            self.set_parameter(f"USER_PASSWORD_{user_id}", new_hashed_password, desc)
+
+    def delete_user(self, user_id: int) -> None:
+        """Delete a user (mark as inactive)."""
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "UPDATE operateurs SET actif = 0 WHERE id = ?",
+                (user_id,)
+            )
+            conn.commit()
+        # Remove password parameter
+        self.delete_parameter(f"USER_PASSWORD_{user_id}")
+
+    def user_exists(self, username: str) -> bool:
+        """Check if a user with the given username exists."""
+        with self._connect() as conn:
+            cursor = conn.cursor()
+            cursor.execute(
+                "SELECT COUNT(*) FROM operateurs WHERE nom = ? AND actif = 1",
+                (username,)
+            )
+            return cursor.fetchone()[0] > 0
 
     def open_db_session(self, seller_name: str, access_right: str) -> tuple[int, int]:
         return self.sessions.open_session(seller_name, access_right)
@@ -403,9 +468,6 @@ class DatabaseManager:
 
     def list_daily_achats(self, day: str) -> list[dict[str, Any]]:
         return self.achats.list_daily_achats(day)
-
-    def total_daily_achats(self, day: str) -> int:
-        return self.achats.total_daily_achats(day)
 
     def _initialize_daily_tracking_form_if_missing(self, day: str) -> None:
         self.followups._initialize_daily_tracking_form_if_missing(day)

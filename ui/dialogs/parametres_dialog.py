@@ -174,7 +174,8 @@ class ParametresDialog(QDialog):
         self._load_settings()
 
     def _init_ui(self) -> None:
-        root = QHBoxLayout(self)
+        # Root layout (horizontal)
+        root = QHBoxLayout()
         root.setContentsMargins(16, 16, 16, 16)
         root.setSpacing(16)
 

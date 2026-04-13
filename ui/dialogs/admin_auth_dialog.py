@@ -2,7 +2,6 @@
 
 from __future__ import annotations
 
-import hashlib
 import logging
 
 from PyQt6.QtCore import Qt
@@ -19,21 +18,19 @@ from PyQt6.QtWidgets import (
 
 logger = logging.getLogger(__name__)
 
-ADMIN_PASSWORD_KEY = "admin_password_hash"
-
 
 class AdminAuthDialog(QDialog):
     """Dialog for admin authentication."""
 
-    def __init__(self, settings_service, parent: QWidget | None = None) -> None:
+    def __init__(self, db_manager, parent: QWidget | None = None) -> None:
         """Initialize admin auth dialog.
 
         Args:
-            settings_service: Settings service for password validation
+            db_manager: Database manager for PIN verification
             parent: Parent widget
         """
         super().__init__(parent)
-        self.settings_service = settings_service
+        self.db_manager = db_manager
         self._admin_authenticated = False
         self.setWindowTitle("Authentification Administrateur")
         self.setModal(True)
@@ -43,13 +40,13 @@ class AdminAuthDialog(QDialog):
         """Build dialog UI."""
         layout = QVBoxLayout(self)
 
-        title = QLabel("Entrez le mot de passe administrateur")
+        title = QLabel("Entrez le code PIN administrateur")
         title.setAlignment(Qt.AlignmentFlag.AlignCenter)
         layout.addWidget(title)
 
         self.password_input = QLineEdit()
         self.password_input.setEchoMode(QLineEdit.EchoMode.Password)
-        self.password_input.setPlaceholderText("Mot de passe")
+        self.password_input.setPlaceholderText("Code PIN")
         self.password_input.returnPressed.connect(self._verify_password)
         layout.addWidget(self.password_input)
 
@@ -68,37 +65,25 @@ class AdminAuthDialog(QDialog):
         layout.addLayout(buttons)
 
     def _verify_password(self) -> None:
-        """Verify entered password against stored hash."""
+        """Verify entered password against stored PIN."""
         entered_password = self.password_input.text()
 
         if not entered_password:
             QMessageBox.warning(
                 self,
                 "Erreur",
-                "Veuillez entrer un mot de passe.",
+                "Veuillez entrer un code PIN.",
             )
             return
 
-        entered_hash = hashlib.sha256(entered_password.encode()).hexdigest()
-        stored_hash = self.settings_service.get_item_value(ADMIN_PASSWORD_KEY, None, "string")
-
-        if stored_hash is None:
-            QMessageBox.warning(
-                self,
-                "Erreur",
-                "Aucun mot de passe administrateur n'est configuré.\n"
-                "Veuillez configurer un mot de passe dans les paramètres.",
-            )
-            return
-
-        if entered_hash == stored_hash:
+        if self.db_manager.verify_admin_pin(entered_password):
             self._admin_authenticated = True
             self.accept()
         else:
             QMessageBox.warning(
                 self,
                 "Erreur",
-                "Mot de passe incorrect.",
+                "Code PIN incorrect.",
             )
             self.password_input.clear()
             self.password_input.setFocus()

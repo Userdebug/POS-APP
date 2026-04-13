@@ -487,7 +487,7 @@ class MainWindow(QMainWindow):
         """Open admin authentication dialog."""
         from ui.dialogs.admin_auth_dialog import AdminAuthDialog
 
-        dialog = AdminAuthDialog(self.controller.db_manager.settings, self)
+        dialog = AdminAuthDialog(self.controller.db_manager, self)
         if dialog.exec() == QDialog.DialogCode.Accepted and dialog.is_authenticated():
             self._admin_authenticated = True
             self.sidebar.enable_admin_buttons()

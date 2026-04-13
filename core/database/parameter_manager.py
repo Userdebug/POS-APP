@@ -46,3 +46,9 @@ class ParameterManager:
     def set_tax(self, rate: float) -> None:
         """Definit le taux de TVA."""
         self.set("TVA_TAUX", f"{float(rate):.2f}", "Taux de TVA en pourcentage")
+
+    def delete(self, key: str) -> None:
+        """Supprime un parametre."""
+        with self._connect() as conn:
+            conn.execute("DELETE FROM parametres WHERE cle = ?", (key,))
+            conn.commit()
