@@ -111,7 +111,6 @@ class EcranMouvements(QWidget):
             qte = int(qte_text) if qte_text else 1
         except ValueError:
             qte = 1
-        qte = max(1, qte)
 
         raison = None
         action_db = action
@@ -149,10 +148,13 @@ class EcranMouvements(QWidget):
 
         apres_b = int(produit.get("b", 0))
         apres_r = int(produit.get("r", 0))
-        if quantite_effective <= 0:
-            # Only refresh if quantity became zero (row removal)
+        if quantite_effective == 0:
+            # Stock is zero - product was removed
+            # Update table and emit signal so main_window updates zone_produits
             self.produits_table.refresh()
             self.produit_info_panel.update_info(produit)
+            # Emit modification so main_window can update zone_produits
+            self.produit_modifie.emit(dict(produit))
             return
 
         # Update only the specific product row without full refresh

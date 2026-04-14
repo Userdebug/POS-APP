@@ -1,56 +1,78 @@
 """Table des produits pour l'ecran mouvements."""
 
+from __future__ import annotations
+
 from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QAbstractItemView,
+    QGridLayout,
     QGroupBox,
     QHBoxLayout,
     QHeaderView,
     QLabel,
-    QLineEdit,
     QPushButton,
     QTableWidget,
     QTableWidgetItem,
     QVBoxLayout,
+    QWidget,
 )
 
 from core.formatters import format_dlv_dlc_date, format_grouped_int
+from ui.components.search_bar import SearchBar
+
+
+class _CategoryButtonGrid(QWidget):
+    """Widget that organizes category buttons in a flexible 2-row grid layout."""
+
+    MAX_BUTTONS_PER_ROW = 8
+
+    def __init__(self, parent: QWidget | None = None) -> None:
+        super().__init__(parent)
+        self._buttons: list[QPushButton] = []
+        self._grid_layout = QGridLayout(self)
+        self._grid_layout.setSpacing(4)
+        self._grid_layout.setContentsMargins(0, 0, 0, 0)
+        self.setLayout(self._grid_layout)
+
+    def clear(self) -> None:
+        """Remove all buttons from the grid."""
+        while self._grid_layout.count():
+            item = self._grid_layout.takeAt(0)
+            if item and item.widget():
+                item.widget().deleteLater()
+        self._buttons.clear()
+
+    def add_button(self, btn: QPushButton) -> None:
+        """Add a button to the grid in a 2-row wrapping layout."""
+        self._buttons.append(btn)
+        row = len(self._buttons) // self.MAX_BUTTONS_PER_ROW
+        col = len(self._buttons) % self.MAX_BUTTONS_PER_ROW
+        self._grid_layout.addWidget(btn, row, col)
+
+    def add_stretch_after_row(self, row: int) -> None:
+        """Add stretch after a specific row."""
+        self._grid_layout.setColumnStretch(row, 1)
+
+    def count(self) -> int:
+        """Return the number of buttons in the grid."""
+        return len(self._buttons)
 
 
 class ProduitsTable(QGroupBox):
     """Widget de liste produits avec recherche et selection."""
 
     produit_selectionne = pyqtSignal(dict)
+    categories_modifiees = pyqtSignal(dict)
 
     def __init__(self) -> None:
         super().__init__("Produits")
         self._produits = []
         self._categorie_active = "Tous"
         self._recherche = ""
+        self._search_text = ""
         self._category_buttons = []
-        # Correction: La map des catégories était manquante, causant un crash au démarrage.
-        # On l'initialise avec les sous-catégories connues.
-        # Ces catégories correspondent aux `categorie_code` du fichier d'import
-        # et aux noms dans la table `categories` de la base de données.
-        self._categories_map = {
-            cat: cat
-            for cat in [
-                "BA",
-                "BSA",
-                "Confi",
-                "EPI",
-                "HS",
-                "Tabac",
-                "Baz",
-                "GL",
-                "Gaz",
-                "PF",
-                "Zoth",
-                "Lub",
-                "Pea",
-                "Solaires",
-            ]
-        }
+        self._categories_map: dict[str, str] = {}
+        self._button_grid: _CategoryButtonGrid | None = None
 
         self._build_ui()
         self.set_produits(self._default_produits())
@@ -94,18 +116,65 @@ class ProduitsTable(QGroupBox):
         footer.setSpacing(6)
         footer.setContentsMargins(0, 0, 0, 0)
         footer.addWidget(QLabel("Categorie :"))
-        self.footer_categories = QHBoxLayout()
-        self.footer_categories.setSpacing(4)
-        footer.addLayout(self.footer_categories, 1)
 
-        self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Recherche fuzzy...")
-        self.search_input.setMaximumHeight(28)
-        self.search_input.textChanged.connect(self._on_search_text_changed)
+        self._button_grid = _CategoryButtonGrid()
+        footer.addWidget(self._button_grid, 1)
+
+        self.search_input = SearchBar(
+            placeholder="Recherche fuzzy...",
+            debounce_ms=300,
+            min_chars=2,
+        )
+        self.search_input.search_changed.connect(self._on_search_changed)
         footer.addWidget(self.search_input, 1)
         layout.addLayout(footer)
 
-        # No timer - search applied immediately
+        self._init_default_categories()
+
+    def _init_default_categories(self) -> None:
+        """Initialize with default hardcoded categories (fallback)."""
+        self._categories_map = {
+            cat: cat
+            for cat in [
+                "BA",
+                "BSA",
+                "Confi",
+                "EPI",
+                "HS",
+                "Tabac",
+                "Baz",
+                "GL",
+                "Gaz",
+                "PF",
+                "Zoth",
+                "Lub",
+                "Pea",
+                "Solaires",
+            ]
+        }
+        self._build_category_buttons()
+
+    def set_categories(self, categories: list[str] | dict[str, str]) -> None:
+        """Set categories dynamically from external source.
+
+        Args:
+            categories: List of category names OR dict mapping prefix to full name.
+        """
+        if isinstance(categories, list):
+            self._categories_map = {cat: cat for cat in categories}
+        else:
+            self._categories_map = dict(categories)
+        self._build_category_buttons()
+        self.categories_modifiees.emit(self._categories_map)
+
+    def get_categories(self) -> dict[str, str]:
+        """Return the current categories map."""
+        return dict(self._categories_map)
+
+    def update_category_buttons(self) -> None:
+        """Rebuild category buttons after external categories have changed."""
+        self._build_category_buttons()
+        self.categories_modifiees.emit(self._categories_map)
 
     def set_produits(self, produits: list[dict]) -> None:
         self._produits = [dict(p) for p in (produits or [])]
@@ -120,7 +189,12 @@ class ProduitsTable(QGroupBox):
         return self._produits
 
     def refresh(self) -> None:
-        self._refresh_table_incremental()
+        """Refresh table with UI update protection."""
+        self.table.setUpdatesEnabled(False)
+        try:
+            self._refresh_table_incremental()
+        finally:
+            self.table.setUpdatesEnabled(True)
 
     def update_produit(self, produit: dict) -> None:
         """Update a single product row in the table without full refresh."""
@@ -183,6 +257,26 @@ class ProduitsTable(QGroupBox):
             else:
                 item.setText(value)
 
+        # Update button - use product ID lookup instead of closure to avoid stale references
+        old_btn = self.table.cellWidget(row, 10)
+        if old_btn is not None:
+            old_btn.deleteLater()
+        btn_select = QPushButton("Choisir")
+        btn_select.setCursor(Qt.CursorShape.PointingHandCursor)
+        # Store product ID in button and look up product from table data
+        produit_id = produit.get("id")
+        btn_select.setProperty("produit_id", produit_id)
+        btn_select.clicked.connect(lambda: self._on_row_button_clicked(row))
+        self.table.setCellWidget(row, 10, btn_select)
+
+    def _on_row_button_clicked(self, row: int) -> None:
+        """Handle button click by looking up product from the filtered list."""
+        # Get the filtered products for this row
+        filtered = self._filtered_produits()
+        if 0 <= row < len(filtered):
+            produit = filtered[row]
+            self.produit_selectionne.emit(dict(produit))
+
     def _insert_table_row(self, row: int, produit: dict) -> None:
         """Insert a new table row with cached button."""
         self.table.insertRow(row)
@@ -209,13 +303,10 @@ class ProduitsTable(QGroupBox):
                 item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             self.table.setItem(row, col, item)
 
-        # Use a static cached button instead of creating new one each time
-        btn_select = self._get_cached_button()
-        try:
-            btn_select.clicked.disconnect()
-        except TypeError:
-            pass  # No connections to disconnect
-        btn_select.clicked.connect(lambda _, p=produit: self._select_produit(p))
+        # Create button using row lookup to avoid closure issues
+        btn_select = QPushButton("Choisir")
+        btn_select.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_select.clicked.connect(lambda: self._on_row_button_clicked(row))
         self.table.setCellWidget(row, 10, btn_select)
 
     def _get_cached_button(self) -> QPushButton:
@@ -236,13 +327,10 @@ class ProduitsTable(QGroupBox):
         self._button_cache.append(btn)
 
     def _build_category_buttons(self) -> None:
-        while self.footer_categories.count():
-            item = self.footer_categories.takeAt(0)
-            if item is None:
-                continue
-            widget = item.widget()
-            if widget is not None:
-                widget.deleteLater()
+        if not self._button_grid:
+            return
+
+        self._button_grid.clear()
         self._category_buttons.clear()
 
         categories = ["Tous"] + sorted(self._categories_map.keys())
@@ -253,9 +341,8 @@ class ProduitsTable(QGroupBox):
             btn.setStyleSheet("padding: 1px 8px;")
             btn.setChecked(cat == self._categorie_active)
             btn.clicked.connect(lambda _, c=cat: self._set_category(c))
-            self.footer_categories.addWidget(btn)
+            self._button_grid.add_button(btn)
             self._category_buttons.append(btn)
-        self.footer_categories.addStretch()
 
     def _set_category(self, categorie: str) -> None:
         self._categorie_active = categorie
@@ -263,27 +350,11 @@ class ProduitsTable(QGroupBox):
             btn.setChecked(btn.text() == categorie)
         self.refresh()
 
-    def _on_search_text_changed(self) -> None:
-        """Applique le filtre de recherche immédiatement."""
-        self._apply_search_filter()
-
-    def _apply_search_filter(self) -> None:
-        """Applique le filtre de recherche apres le delai du timer."""
-        text = self.search_input.text().strip().lower()
-
-        # Regle: bloque la recherche pour les repetitions (ex: 'aaaa', '1111')
-        if len(text) > 3 and len(set(text)) == 1:
-            return
-
-        # Regle: recherche activee a partir de 2 caracteres
-        if len(text) < 2:
-            text = ""
-
-        if text == self._search_text:
-            return
-
-        self._search_text = text
-        self.refresh()
+    def _on_search_changed(self, text: str) -> None:
+        """Handle debounced search text from SearchBar."""
+        if text != self._search_text:
+            self._search_text = text
+            self.refresh()
 
     def _matches_search(self, produit: dict) -> bool:
         if not self._search_text:
@@ -306,9 +377,28 @@ class ProduitsTable(QGroupBox):
             if not self._matches_search(produit):
                 continue
             resultat.append(produit)
+
+        resultat.sort(key=self._sort_by_dlv_dlc)
         return resultat
 
-    def _select_produit(self, produit: dict) -> None:
+    def _sort_by_dlv_dlc(self, produit: dict) -> tuple:
+        dlv_dlc = str(produit.get("dlv_dlc", "")).strip()
+        if not dlv_dlc:
+            return (1, "")  # Empty dates last
+        # Parse date for sorting (format: DD/MM/YYYY)
+        parts = dlv_dlc.split("/")
+        if len(parts) == 3:
+            try:
+                day, month, year = int(parts[0]), int(parts[1]), int(parts[2])
+                return (0, year * 10000 + month * 100 + day)  # Sort ascending (nearest first)
+            except ValueError:
+                return (1, "")
+        return (1, "")
+
+    def _select_produit(self, produit) -> None:
+        # Guard: ensure produit is a valid dict before emitting
+        if not isinstance(produit, dict):
+            return
         self.produit_selectionne.emit(dict(produit))
 
     def _default_produits(self) -> list[dict]:

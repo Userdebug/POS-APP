@@ -230,11 +230,11 @@ class ProductRepository:
             logger.info("Found %d promo products", len(result))
             return result
 
-    def list_products_near_dlv(self, days: int = 7) -> list[dict[str, Any]]:
+    def list_products_near_dlv(self, days: int = 30) -> list[dict[str, Any]]:
         """List products whose DLV/DLC date is within the given number of days.
 
         Args:
-            days: Number of days threshold from today (default 7).
+            days: Number of days threshold from today (default 30).
 
         Returns:
             List of dicts with id, nom, dlv_dlc, stock_boutique, stock_reserve.
@@ -251,11 +251,17 @@ class ProductRepository:
             result = []
             for row in rows:
                 try:
-                    dlv_date = datetime.date.fromisoformat(row["dlv_dlc"])
+                    # Handle multiple date formats: "1/10/2026 00:00:00" or "30/6/2026"
+                    dlv_str = row["dlv_dlc"]
+                    # Try first format with time, then without time
+                    try:
+                        dlv_date = datetime.datetime.strptime(dlv_str, "%d/%m/%Y %H:%M:%S").date()
+                    except ValueError:
+                        dlv_date = datetime.datetime.strptime(dlv_str, "%d/%m/%Y").date()
+                    if today <= dlv_date <= limit:
+                        result.append(dict(row))
                 except (ValueError, TypeError):
                     continue
-                if today <= dlv_date <= limit:
-                    result.append(dict(row))
             logger.info("Found %d products near DLV within %d days", len(result), days)
             return result
 
@@ -276,7 +282,13 @@ class ProductRepository:
             result = []
             for row in rows:
                 try:
-                    dlv_date = datetime.date.fromisoformat(row["dlv_dlc"])
+                    # Handle multiple date formats: "1/10/2026 00:00:00" or "30/6/2026"
+                    dlv_str = row["dlv_dlc"]
+                    # Try first format with time, then without time
+                    try:
+                        dlv_date = datetime.datetime.strptime(dlv_str, "%d/%m/%Y %H:%M:%S").date()
+                    except ValueError:
+                        dlv_date = datetime.datetime.strptime(dlv_str, "%d/%m/%Y").date()
                     if dlv_date < today:  # DLV has passed
                         result.append(dict(row))
                 except (ValueError, TypeError):

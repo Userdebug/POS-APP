@@ -130,18 +130,26 @@ class BaseBasketZone(QWidget):
         try:
             previous_row = self._active_row
             items = [normalize_ligne(p) for p in self.pm.get_actif()]
+            draft = self.drafts.get_draft(self._draft_key)
+            has_draft = draft is not None
 
             if self.table:
+                # Block signals to prevent layout thrashing during population
+                self.table.blockSignals(True)
                 self.table.setUpdatesEnabled(False)
             try:
                 if self.table:
-                    self.table.setRowCount(0)
+                    # Pre-allocate all rows at once - much faster than row-by-row insertion
+                    item_count = len(items)
+                    total_rows = item_count + (1 if has_draft else 0)
+                    self.table.setRowCount(total_rows)
 
-                self._populate_table(items)
+                # Populate items using pre-allocated rows (index-based, no insertRow)
+                self._populate_table_batch(items)
 
-                draft = self.drafts.get_draft(self._draft_key)
+                # Append draft row using pre-allocated row
                 if draft and self.table:
-                    self._append_draft_row(draft)
+                    self._append_draft_row_batch(draft, len(items))
 
                 # Restore selection
                 if self.table:
@@ -160,6 +168,7 @@ class BaseBasketZone(QWidget):
                 self._emit_validation_state()
             finally:
                 if self.table:
+                    self.table.blockSignals(False)
                     self.table.setUpdatesEnabled(True)
                     viewport = self.table.viewport()
                     if viewport is not None:
@@ -169,6 +178,21 @@ class BaseBasketZone(QWidget):
             raise
         finally:
             self._refresh_lock = False
+
+    def _populate_table_batch(self, items: list[dict[str, Any]]) -> None:
+        """Populate table using pre-allocated rows (index-based, no insertRow)."""
+        for idx, ligne in enumerate(items):
+            self._ensure_row_marker(self.table, idx)
+            self._insert_row_at_index(idx, ligne, is_brouillon=False)
+
+    def _append_draft_row_batch(self, draft: dict[str, Any], row_index: int) -> None:
+        """Append draft row using pre-allocated row at given index."""
+        self._ensure_row_marker(self.table, row_index)
+        self._insert_row_at_index(row_index, draft, is_brouillon=True)
+
+    def _insert_row_at_index(self, row: int, ligne: dict[str, Any], is_brouillon: bool) -> None:
+        """Insert row data at pre-allocated row index. Subclass implements specifics."""
+        raise NotImplementedError
 
     # ==================== Validation ====================
 

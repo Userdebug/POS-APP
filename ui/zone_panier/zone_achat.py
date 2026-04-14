@@ -384,20 +384,28 @@ class ZoneAchat(BaseBasketZone):
     # ==================== Table Population ====================
 
     def _populate_table(self, items: list[dict[str, Any]]) -> None:
+        """Legacy method - uses batch version."""
+        self._populate_table_batch(items)
+
+    def _populate_table_batch(self, items: list[dict[str, Any]]) -> None:
+        """Populate table using pre-allocated rows (index-based, no insertRow)."""
         tables_data = PanierTableBuilder.build(items)
-        for row_data in tables_data.facture_rows:
-            row_f = self.table.rowCount()
-            self.table.insertRow(row_f)
-            self._ensure_row_marker(self.table, row_f)
-            self._insert_facture_row_from_descriptor(row_f, row_data)
+        for idx, row_data in enumerate(tables_data.facture_rows):
+            self._ensure_row_marker(self.table, idx)
+            self._insert_facture_row_from_descriptor(idx, row_data)
 
     def _append_draft_row(self, draft: dict[str, Any]) -> None:
-        row = self.table.rowCount()
-        self.table.insertRow(row)
-        self._ensure_row_marker(self.table, row)
-        self._insert_achat_row(row, draft, is_brouillon=True)
+        """Legacy method - uses batch version."""
+        row = self.table.rowCount() - 1 if self.table.rowCount() > 0 else 0
+        self._append_draft_row_batch(draft, row)
+
+    def _append_draft_row_batch(self, draft: dict[str, Any], row_index: int) -> None:
+        """Append draft row using pre-allocated row at given index."""
+        self._ensure_row_marker(self.table, row_index)
+        self._insert_achat_row(row_index, draft, is_brouillon=True)
 
     def _insert_achat_row(self, row: int, ligne: dict[str, Any], is_brouillon: bool) -> None:
+        """Insert achat row at given row index (uses pre-allocated row)."""
         pa = int(ligne.get("pa", ligne.get("prix", 0)))
         prc = int(ligne.get("prc", 0))
         pv = int(ligne.get("pv", 0))
@@ -417,6 +425,10 @@ class ZoneAchat(BaseBasketZone):
         self._apply_row_validation_style(self.table, row, validated=not is_brouillon)
         # Update action button state to refresh total after adding a line
         self._update_action_button_state()
+
+    def _insert_row_at_index(self, row: int, ligne: dict[str, Any], is_brouillon: bool) -> None:
+        """Insert row at pre-allocated index (delegate to _insert_achat_row)."""
+        self._insert_achat_row(row, ligne, is_brouillon)
 
     def _insert_facture_row_from_descriptor(self, row: int, row_data: FactureRowDescriptor) -> None:
         for col, cell_data in enumerate(row_data.cells):

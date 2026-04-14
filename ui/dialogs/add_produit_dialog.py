@@ -155,15 +155,22 @@ class AddProduitDialog(QDialog):
         # Date limite de vente/conso (DLV/DLC)
         self.input_dlv_dlc = QDateEdit()
         self.input_dlv_dlc.setCalendarPopup(True)
-        self.input_dlv_dlc.setDisplayFormat("yyyy-MM-dd")
+        self.input_dlv_dlc.setDisplayFormat("dd/MM/yy")
         self.input_dlv_dlc.setDate(QDate.currentDate())
         self.input_dlv_dlc.setMinimumHeight(INPUT_MIN_HEIGHT)
         if produit and produit.get("dlv_dlc"):
             date_str = produit.get("dlv_dlc", "")
             if date_str:
-                parts = date_str.split("-")
+                # Parse from dd/mm/yy format
+                parts = date_str.split("/")
                 if len(parts) == 3:
-                    self.input_dlv_dlc.setDate(QDate(int(parts[0]), int(parts[1]), int(parts[2])))
+                    day, month, year = int(parts[0]), int(parts[1]), int(parts[2])
+                    # Handle 2-digit year (assume 2000s for years < 50, 1900s otherwise)
+                    if year < 50:
+                        year += 2000
+                    else:
+                        year += 1900
+                    self.input_dlv_dlc.setDate(QDate(year, month, day))
         form.addRow("Date Limite (DLV/DLC)", self.input_dlv_dlc)
 
         # Description field
@@ -300,7 +307,7 @@ class AddProduitDialog(QDialog):
             "pa": self.input_pa.value(),
             "prc": int(round(self.input_pa.value() * 1.2)),
             "pv": self.input_pv.value(),
-            "dlv_dlc": self.input_dlv_dlc.date().toString("yyyy-MM-dd"),
+            "dlv_dlc": self.input_dlv_dlc.date().toString("dd/MM/yy"),
             "description": self.input_description.toPlainText().strip(),
             "sku": self.input_sku.text().strip(),
             "en_promo": 1 if self._en_promo else 0,

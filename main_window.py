@@ -203,10 +203,10 @@ class MainWindow(QMainWindow):
         - DefillingTickerWidget: Near expiry, to remove alerts
         """
         frame = QFrame()
-        frame.setMinimumHeight(70)
+        frame.setMinimumHeight(65)
         frame.setStyleSheet("background-color: #1f2937; border-radius: 4px;")
         layout = QHBoxLayout(frame)
-        layout.setContentsMargins(6, 4, 6, 4)
+        layout.setContentsMargins(4, 4, 4, 4)
         layout.setSpacing(8)
         layout.addWidget(self.header_info_widget, 0)
         layout.addWidget(self.defilling_widget, 0)

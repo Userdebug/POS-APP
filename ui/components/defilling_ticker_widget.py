@@ -4,7 +4,7 @@ from __future__ import annotations
 
 import logging
 
-from PyQt6.QtCore import Qt, QTimer, QEvent
+from PyQt6.QtCore import QEvent, Qt, QTimer
 from PyQt6.QtWidgets import (
     QFrame,
     QHBoxLayout,
@@ -28,7 +28,7 @@ class DualLineScroller(QListWidget):
         self._scroll_timer = QTimer(self)
         self._scroll_speed = 1
 
-        self.setFixedHeight(38)
+        self.setFixedHeight(34)
         self.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setVerticalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
         self.setFocusPolicy(Qt.FocusPolicy.NoFocus)
@@ -49,32 +49,32 @@ class DualLineScroller(QListWidget):
         if not names:
             return 0
 
-        display_list = names + names
-        for name in display_list:
+        # Add items for display
+        for name in names:
             item = QListWidgetItem(name)
-            # Do not set foreground here; the stylesheet's color will apply
             self.addItem(item)
 
         scroll_bar = self.verticalScrollBar()
         if scroll_bar is not None:
             scroll_bar.setValue(0)
 
+            # Only auto-scroll if 3 or more items (1-2 items display statically)
             max_scroll = scroll_bar.maximum()
-            if max_scroll > 0:
+            if max_scroll > 0 and len(names) >= 3:
                 # < 5 produits: 5s pour parcourir, >= 5 produits: 3s pour parcourir
-                total_time = 5000 if len(names) < 5 else 3000
+                total_time = 10000 if len(names) < 5 else 6000
                 interval = (total_time * 3) // max_scroll
                 self._scroll_timer.setInterval(max(20, interval))
                 self._scroll_timer.start()
 
         return self._product_count
 
-    def enterEvent(self, event: QEvent) -> None:
+    def enterEvent(self, event: QEnterEvent | None) -> None:
         self._paused = True
         self._scroll_timer.stop()
         super().enterEvent(event)
 
-    def leaveEvent(self, event: QEvent) -> None:
+    def leaveEvent(self, event: QEvent | None) -> None:
         self._paused = False
         scroll_bar = self.verticalScrollBar()
         if scroll_bar is not None and self._product_count > 0 and scroll_bar.maximum() > 0:
@@ -121,16 +121,16 @@ class DefillingWidget(QWidget):
 
     def _create_column(self, title: str, text_color: str, bg_color: str) -> QFrame:
         frame = QFrame()
-        frame.setStyleSheet(f"background-color: {bg_color}; border-radius: 6px; border: none;")
+        frame.setStyleSheet(f"background-color: {bg_color}; border-radius: 4px; border: none;")
 
         layout = QVBoxLayout(frame)
-        layout.setContentsMargins(6, 4, 6, 4)
-        layout.setSpacing(2)
+        layout.setContentsMargins(4, 2, 4, 2)
+        layout.setSpacing(0)
 
         title_label = QLabel(title)
         title_label.setStyleSheet(
-            f"color: {text_color}; font-size: 12px; font-weight: bold; "
-            "background-color: transparent; border: none; padding: 2px;"
+            f"color: {text_color}; font-size: 10px; font-weight: bold; "
+            "background-color: transparent; border: none; padding: 1px;"
         )
         layout.addWidget(title_label)
 
@@ -149,15 +149,26 @@ class DefillingWidget(QWidget):
         to_remove: list[dict],
     ) -> None:
         """Update the widget with product data from each category."""
-        # Ignore promo data as requested
-        self._dlv_names = [p["nom"] for p in near_dlv]
-        self._remove_names = [p["nom"] for p in to_remove]
+        # Filter products with non-zero quantity
+        near_dlv_valid = [
+            p
+            for p in near_dlv
+            if (p.get("stock_boutique", 0) or 0) + (p.get("stock_reserve", 0) or 0) > 0
+        ]
+        to_remove_valid = [
+            p
+            for p in to_remove
+            if (p.get("stock_boutique", 0) or 0) + (p.get("stock_reserve", 0) or 0) > 0
+        ]
+
+        self._dlv_names = [p["nom"] for p in near_dlv_valid]
+        self._remove_names = [p["nom"] for p in to_remove_valid]
 
         self._dlv_qty = sum(
-            p.get("stock_boutique", 0) + p.get("stock_reserve", 0) for p in near_dlv
+            p.get("stock_boutique", 0) + p.get("stock_reserve", 0) for p in near_dlv_valid
         )
         self._remove_qty = sum(
-            p.get("stock_boutique", 0) + p.get("stock_reserve", 0) for p in to_remove
+            p.get("stock_boutique", 0) + p.get("stock_reserve", 0) for p in to_remove_valid
         )
 
         # Update column titles using property() to get the labels
@@ -171,8 +182,10 @@ class DefillingWidget(QWidget):
         # Update scrollers using property() to get the scroller
         dlv_scroller = self._dlv_column.property("_scroller")
         remove_scroller = self._remove_column.property("_scroller")
+
         if dlv_scroller is not None:
             dlv_scroller.set_products(self._dlv_names)
+
         if remove_scroller is not None:
             remove_scroller.set_products(self._remove_names)
 

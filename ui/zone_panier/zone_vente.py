@@ -174,21 +174,29 @@ class ZoneVente(BaseBasketZone):
     # ==================== Table Population ====================
 
     def _populate_table(self, items: list[dict[str, Any]]) -> None:
+        """Legacy method - uses batch version."""
+        self._populate_table_batch(items)
+
+    def _populate_table_batch(self, items: list[dict[str, Any]]) -> None:
+        """Populate table using pre-allocated rows (index-based, no insertRow)."""
         assert self.table is not None
-        for ligne in items:
-            row = self.table.rowCount()
-            self.table.insertRow(row)
-            self._ensure_row_marker(self.table, row)
-            self._insert_vente_row(row, ligne, is_brouillon=False)
+        for idx, ligne in enumerate(items):
+            self._ensure_row_marker(self.table, idx)
+            self._insert_vente_row(idx, ligne, is_brouillon=False)
 
     def _append_draft_row(self, draft: dict[str, Any]) -> None:
+        """Legacy method - uses batch version."""
+        row = self.table.rowCount() - 1 if self.table.rowCount() > 0 else 0
+        self._append_draft_row_batch(draft, row)
+
+    def _append_draft_row_batch(self, draft: dict[str, Any], row_index: int) -> None:
+        """Append draft row using pre-allocated row at given index."""
         assert self.table is not None
-        row = self.table.rowCount()
-        self.table.insertRow(row)
-        self._ensure_row_marker(self.table, row)
-        self._insert_vente_row(row, draft, is_brouillon=True)
+        self._ensure_row_marker(self.table, row_index)
+        self._insert_vente_row(row_index, draft, is_brouillon=True)
 
     def _insert_vente_row(self, row: int, ligne: dict[str, Any], is_brouillon: bool) -> None:
+        """Insert vente row at given row index (uses pre-allocated row)."""
         assert self.table is not None
         pu = int(ligne.get("prix", 0))
         total = ligne_total(ligne)
@@ -201,6 +209,10 @@ class ZoneVente(BaseBasketZone):
         if not is_brouillon:
             self._render_delete_cell(row, is_brouillon)
         self._apply_row_validation_style(self.table, row, validated=not is_brouillon)
+
+    def _insert_row_at_index(self, row: int, ligne: dict[str, Any], is_brouillon: bool) -> None:
+        """Insert row at pre-allocated index (delegate to _insert_vente_row)."""
+        self._insert_vente_row(row, ligne, is_brouillon)
 
     def _render_qte_cell(self, row: int, qte: int, is_brouillon: bool) -> None:
         assert self.table is not None

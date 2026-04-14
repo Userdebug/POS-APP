@@ -50,12 +50,6 @@ class CategoryRepository:
             row = conn.execute("SELECT * FROM categories WHERE nom = ?", (nom,)).fetchone()
             return self._row_to_category(dict(row)) if row else None
 
-    def get_by_name(self, nom: str) -> Category | None:
-        """Get category by name."""
-        with self._connect() as conn:
-            row = conn.execute("SELECT * FROM categories WHERE nom = ?", (nom,)).fetchone()
-            return self._row_to_category(row) if row else None
-
     def create(self, category: Category) -> int:
         """Create a new category and return its ID."""
         with self._connect() as conn:

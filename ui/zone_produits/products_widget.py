@@ -8,7 +8,6 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QHeaderView,
     QLabel,
-    QLineEdit,
     QPushButton,
     QSizePolicy,
     QTableWidget,
@@ -20,6 +19,7 @@ from PyQt6.QtWidgets import (
 from core.formatters import format_dlv_dlc_date, format_grouped_int, parse_dlv_dlc_date
 from styles.design_tokens import TOKENS
 from ui.components.pos_tables import get_table_style
+from ui.components.search_bar import SearchBar
 
 
 class ZoneProduits(QWidget):
@@ -73,13 +73,16 @@ class ZoneProduits(QWidget):
 
         main_layout.addWidget(self.table, 1)
 
-        # Footer avec champ de recherche
+        # Footer avec SearchBar (debounce integre)
         footer = QHBoxLayout()
         footer.setSpacing(10)
 
-        self.search_input = QLineEdit()
-        self.search_input.setPlaceholderText("Rechercher un produit...")
-        self.search_input.textChanged.connect(self._on_search_text_changed)
+        self.search_input = SearchBar(
+            placeholder="Rechercher un produit...",
+            debounce_ms=300,
+            min_chars=2,
+        )
+        self.search_input.search_changed.connect(self._on_search_changed)
         footer.addWidget(self.search_input, 1)
         main_layout.addLayout(footer)
 
@@ -115,15 +118,8 @@ class ZoneProduits(QWidget):
         self.search_input.clear()
         self._refresh_table()
 
-    def _on_search_text_changed(self, text):
-        self._apply_search_filter()
-
-    def _apply_search_filter(self):
-        text = self.search_input.text().strip().lower()
-        if len(text) > 3 and len(set(text)) == 1:
-            return
-        if len(text) < 2:
-            text = ""
+    def _on_search_changed(self, text: str) -> None:
+        """Handle debounced search text from SearchBar."""
         if text == self.search_text:
             return
         self.search_text = text
@@ -323,8 +319,8 @@ class ZoneProduits(QWidget):
                 background-color: #0a2f6a;
             }}
             QPushButton:disabled {{
-                background-color: {TOKENS['bg_button_disabled']};
-                color: {TOKENS['text_muted']};
+                background-color: {TOKENS["bg_button_disabled"]};
+                color: {TOKENS["text_muted"]};
                 border-radius: 6px;
             }}
         """

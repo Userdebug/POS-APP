@@ -117,9 +117,7 @@ class PanierSelectionController:
 
         # Check stock
         if requested_qte > available_stock:
-            return (
-                False,
-                f"Stock insuffisant! Stock actuel: {available_stock}, Quantité demandée: {requested_qte}",
-            )
+            msg = f"Stock insuffisant! Actuel: {available_stock}, Demandé: {requested_qte}"
+            return False, msg
 
         return True, ""

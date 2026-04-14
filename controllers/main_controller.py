@@ -477,7 +477,7 @@ class MainController(QObject):
 
         # Extract product dicts (with stock info) from repository queries
         promo_products = self.db_manager.products.list_products_en_promo()
-        near_dlv_products = self.db_manager.products.list_products_near_dlv(7)
+        near_dlv_products = self.db_manager.products.list_products_near_dlv(30)
         to_remove_products = self.db_manager.products.list_products_to_remove()
 
         header_data = {

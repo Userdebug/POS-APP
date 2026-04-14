@@ -44,8 +44,11 @@ def parse_expiry_dates(value: str | None) -> date | None:
     text = (value or "").strip()
     if not text:
         return None
-    candidate = text.split()[-1]
-    for fmt in ["%d/%m/%y", "%Y-%m-%d"]:
+    # Extract date part: handle datetime strings like "2025-04-15 00:00:00" or "2025-04-15T00:00:00"
+    # Take the first part before space or T
+    candidate = text.split()[0] if " " in text else text.split("T")[0]
+    # Try formats: dd/mm/yy, dd/mm/yyyy (existing data), yyyy-mm-dd
+    for fmt in ["%d/%m/%y", "%d/%m/%Y", "%Y-%m-%d"]:
         try:
             return datetime.strptime(candidate, fmt).date()
         except ValueError:

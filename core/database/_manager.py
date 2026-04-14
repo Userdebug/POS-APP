@@ -10,8 +10,6 @@ from datetime import datetime, timedelta
 from pathlib import Path
 from typing import Any, Iterator
 
-logger = logging.getLogger(__name__)
-
 from core.categories import CategoryRepository, CategoryService
 from core.constants import (
     DATE_FORMAT_DAY,
@@ -38,9 +36,12 @@ from repositories import (
     SessionsRepository,
 )
 
+logger = logging.getLogger(__name__)
+
+logger = logging.getLogger(__name__)
+
 
 class DatabaseManager:
-
     def __init__(
         self, db_path: str = "database/app.db", schema_path: str = "database/schema.sql"
     ) -> None:
@@ -256,8 +257,6 @@ class DatabaseManager:
         """Delete a parameter."""
         self.settings.delete_item(key)
 
-
-
     def get_tax(self, default: float = 20.0) -> float:
         return self.financial.get_tva_rate(default)
 
@@ -296,7 +295,7 @@ class DatabaseManager:
             cursor = conn.cursor()
             cursor.execute(
                 "INSERT INTO operateurs (nom, droit_acces, actif) VALUES (?, 'user', 1)",
-                (username,)
+                (username,),
             )
             user_id = cursor.lastrowid
             conn.commit()
@@ -312,10 +311,7 @@ class DatabaseManager:
         """Update user information."""
         with self._connect() as conn:
             cursor = conn.cursor()
-            cursor.execute(
-                "UPDATE operateurs SET nom = ? WHERE id = ?",
-                (new_username, user_id)
-            )
+            cursor.execute("UPDATE operateurs SET nom = ? WHERE id = ?", (new_username, user_id))
             conn.commit()
         if new_hashed_password:
             desc = f"Password for user {new_username}"
@@ -325,10 +321,7 @@ class DatabaseManager:
         """Delete a user (mark as inactive)."""
         with self._connect() as conn:
             cursor = conn.cursor()
-            cursor.execute(
-                "UPDATE operateurs SET actif = 0 WHERE id = ?",
-                (user_id,)
-            )
+            cursor.execute("UPDATE operateurs SET actif = 0 WHERE id = ?", (user_id,))
             conn.commit()
         # Remove password parameter
         self.delete_parameter(f"USER_PASSWORD_{user_id}")
@@ -338,8 +331,7 @@ class DatabaseManager:
         with self._connect() as conn:
             cursor = conn.cursor()
             cursor.execute(
-                "SELECT COUNT(*) FROM operateurs WHERE nom = ? AND actif = 1",
-                (username,)
+                "SELECT COUNT(*) FROM operateurs WHERE nom = ? AND actif = 1", (username,)
             )
             return cursor.fetchone()[0] > 0
 
@@ -712,7 +704,7 @@ class DatabaseManager:
                     {case_sql}
                     ELSE stock_boutique
                 END
-                WHERE id IN ({','.join(['?' for _ in valid_items])})
+                WHERE id IN ({",".join(["?" for _ in valid_items])})
                 """,
                 params + [prod_id for _, prod_id in valid_items],
             )

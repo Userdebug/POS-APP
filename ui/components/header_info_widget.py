@@ -15,10 +15,10 @@ class HeaderInfoWidget(QWidget):
 
     def __init__(self, parent: QWidget | None = None) -> None:
         super().__init__(parent)
-        self.setMinimumHeight(80)
+        self.setMinimumHeight(56)
         self._main_layout = QHBoxLayout(self)
-        self._main_layout.setContentsMargins(10, 4, 10, 4)
-        self._main_layout.setSpacing(20)
+        self._main_layout.setContentsMargins(8, 2, 8, 2)
+        self._main_layout.setSpacing(12)
 
         left_container = QWidget()
         left_layout = QVBoxLayout(left_container)
@@ -26,11 +26,11 @@ class HeaderInfoWidget(QWidget):
         left_layout.setSpacing(2)
 
         self.lbl_user = QLabel("Utilisateur: —")
-        self.lbl_user.setStyleSheet("color: #e5e7eb; font-size: 14px; font-weight: bold;")
+        self.lbl_user.setStyleSheet("color: #e5e7eb; font-size: 12px; font-weight: bold;")
         left_layout.addWidget(self.lbl_user)
 
         self.lbl_transactions = QLabel("Transactions: 0")
-        self.lbl_transactions.setStyleSheet("color: #9ca3af; font-size: 13px;")
+        self.lbl_transactions.setStyleSheet("color: #9ca3af; font-size: 11px;")
         left_layout.addWidget(self.lbl_transactions)
 
         self._main_layout.addWidget(left_container, 0)
@@ -46,51 +46,51 @@ class HeaderInfoWidget(QWidget):
         # Vente metric - 2 rows with background
         self.vente_container = QWidget()
         self.vente_container.setStyleSheet(
-            "background-color: #292929; border-radius: 6px; padding: 10px 12px;"
+            "background-color: #292929; border-radius: 4px; padding: 6px 8px;"
         )
         self.vente_inner_layout = QVBoxLayout(self.vente_container)
         self.vente_inner_layout.setSpacing(0)
-        self.vente_inner_layout.setContentsMargins(0, 6, 0, 6)
+        self.vente_inner_layout.setContentsMargins(0, 2, 0, 2)
         self.lbl_vente_label = QLabel("Vente")
-        self.lbl_vente_label.setStyleSheet("color: #eab308; font-size: 12px; font-weight: bold;")
+        self.lbl_vente_label.setStyleSheet("color: #eab308; font-size: 10px; font-weight: bold;")
         self.lbl_vente_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         self.vente_inner_layout.addWidget(self.lbl_vente_label)
         self.lbl_vente = QLabel("0 Ar")
-        self.lbl_vente.setStyleSheet("color: #eab308; font-size: 18px; font-weight: bold;")
+        self.lbl_vente.setStyleSheet("color: #eab308; font-size: 14px; font-weight: bold;")
         self.lbl_vente.setAlignment(Qt.AlignmentFlag.AlignRight)
         self.vente_inner_layout.addWidget(self.lbl_vente)
 
         # Depenses metric - 2 rows with background
         self.depenses_container = QWidget()
         self.depenses_container.setStyleSheet(
-            "background-color: #292929; border-radius: 6px; padding: 10px 12px;"
+            "background-color: #292929; border-radius: 4px; padding: 6px 8px;"
         )
         self.depenses_inner_layout = QVBoxLayout(self.depenses_container)
         self.depenses_inner_layout.setSpacing(0)
-        self.depenses_inner_layout.setContentsMargins(0, 6, 0, 6)
+        self.depenses_inner_layout.setContentsMargins(0, 2, 0, 2)
         self.lbl_depenses_label = QLabel("Dépenses")
-        self.lbl_depenses_label.setStyleSheet("color: #ef4444; font-size: 12px; font-weight: bold;")
+        self.lbl_depenses_label.setStyleSheet("color: #ef4444; font-size: 10px; font-weight: bold;")
         self.lbl_depenses_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         self.depenses_inner_layout.addWidget(self.lbl_depenses_label)
         self.lbl_depenses = QLabel("0 Ar")
-        self.lbl_depenses.setStyleSheet("color: #ef4444; font-size: 18px; font-weight: bold;")
+        self.lbl_depenses.setStyleSheet("color: #ef4444; font-size: 14px; font-weight: bold;")
         self.lbl_depenses.setAlignment(Qt.AlignmentFlag.AlignRight)
         self.depenses_inner_layout.addWidget(self.lbl_depenses)
 
         # Caisse metric - 2 rows with background
         self.caisse_container = QWidget()
         self.caisse_container.setStyleSheet(
-            "background-color: #292929; border-radius: 6px; padding: 10px 12px;"
+            "background-color: #292929; border-radius: 4px; padding: 6px 8px;"
         )
         self.caisse_inner_layout = QVBoxLayout(self.caisse_container)
         self.caisse_inner_layout.setSpacing(0)
-        self.caisse_inner_layout.setContentsMargins(0, 6, 0, 6)
+        self.caisse_inner_layout.setContentsMargins(0, 2, 0, 2)
         self.lbl_caisse_label = QLabel("Caisse")
-        self.lbl_caisse_label.setStyleSheet("color: #22c55e; font-size: 12px; font-weight: bold;")
+        self.lbl_caisse_label.setStyleSheet("color: #22c55e; font-size: 10px; font-weight: bold;")
         self.lbl_caisse_label.setAlignment(Qt.AlignmentFlag.AlignRight)
         self.caisse_inner_layout.addWidget(self.lbl_caisse_label)
         self.lbl_caisse = QLabel("0 Ar")
-        self.lbl_caisse.setStyleSheet("color: #22c55e; font-size: 18px; font-weight: bold;")
+        self.lbl_caisse.setStyleSheet("color: #22c55e; font-size: 14px; font-weight: bold;")
         self.lbl_caisse.setAlignment(Qt.AlignmentFlag.AlignRight)
         self.caisse_inner_layout.addWidget(self.lbl_caisse)
 

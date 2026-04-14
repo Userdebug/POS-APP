@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from typing import Any
 
 from core.formatters import format_grouped_int, parse_grouped_int
+from core.utils import calculate_line_total
 
 
 @dataclass(frozen=True)
@@ -15,9 +16,6 @@ class FactureCellEditResult:
     formatted_cell_value: str | None
     formatted_prc_value: str | None
     formatted_total_value: str | None
-
-
-from core.utils import calculate_line_total
 
 
 class FactureLineEditService:
