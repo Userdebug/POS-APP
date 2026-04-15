@@ -162,11 +162,42 @@ class SidebarPanel(QFrame):
         self.btn_ecart = QPushButton("Écart\n0 Ar")
         self.btn_ecart.setObjectName("EcartButton")
         self.btn_ecart.setFixedHeight(50)
-        ecart_style = """
+        # Neutral style (matches theme)
+        self._ecart_neutral = """
+            QPushButton {
+                background-color: #333333;
+                color: white;
+                border: none;
+                padding: 4px 12px;
+                font-weight: bold;
+                font-size: 14px;
+                border-radius: 6px;
+            }
+            QPushButton:hover {
+                background-color: #444444;
+            }
+        """
+        # Positive (green) style
+        self._ecart_positive = """
+            QPushButton {
+                background-color: #16a34a;
+                color: white;
+                border: 1px solid #15803d;
+                padding: 4px 12px;
+                font-weight: bold;
+                font-size: 14px;
+                border-radius: 6px;
+            }
+            QPushButton:hover {
+                background-color: #22c55e;
+            }
+        """
+        # Negative (red) style
+        self._ecart_negative = """
             QPushButton {
                 background-color: #dc2626;
                 color: white;
-                border: none;
+                border: 1px solid #b91c1c;
                 padding: 4px 12px;
                 font-weight: bold;
                 font-size: 14px;
@@ -176,7 +207,7 @@ class SidebarPanel(QFrame):
                 background-color: #ef4444;
             }
         """
-        self.btn_ecart.setStyleSheet(ecart_style)
+        self.btn_ecart.setStyleSheet(self._ecart_neutral)
         self.btn_ecart.clicked.connect(self.cloture_clicked.emit)
         bottom_layout.addWidget(self.btn_ecart)
 
@@ -208,3 +239,32 @@ class SidebarPanel(QFrame):
                 self.btn_ecart.setText(f"Écart\n{value}")
             else:
                 self.btn_ecart.setText(f"Écart\n{text}")
+
+            # Set color based on value
+            self._set_ecart_color(text)
+
+    def _set_ecart_color(self, text: str) -> None:
+        """Apply color based on ecart value."""
+        # Extract numeric value from text
+        value_str = text
+        if ":" in text:
+            parts = text.split(":", 1)
+            value_str = parts[1].strip()
+
+        # Remove "Ar" and any whitespace (including thousands separator spaces)
+        value_str = value_str.replace("Ar", "").replace(" ", "").strip()
+
+        try:
+            value = int(value_str)
+        except ValueError:
+            # Cannot parse, use neutral
+            self.btn_ecart.setStyleSheet(self._ecart_neutral)
+            return
+
+        # Apply appropriate style
+        if value < 0:
+            self.btn_ecart.setStyleSheet(self._ecart_negative)
+        elif value > 0:
+            self.btn_ecart.setStyleSheet(self._ecart_positive)
+        else:
+            self.btn_ecart.setStyleSheet(self._ecart_neutral)

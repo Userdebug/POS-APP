@@ -73,7 +73,7 @@ class ExportDialog(QDialog):
         date_layout.addWidget(QLabel("Date:"))
         self.date_edit = QDateEdit()
         self.date_edit.setCalendarPopup(True)
-        self.date_edit.setDisplayFormat("yyyy-MM-dd")
+        self.date_edit.setDisplayFormat("dd/MM/yy")
         self.date_edit.setDate(QDate.currentDate())
         date_layout.addWidget(self.date_edit)
         date_layout.addStretch()

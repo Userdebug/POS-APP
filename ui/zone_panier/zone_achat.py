@@ -9,7 +9,7 @@ from __future__ import annotations
 import logging
 from typing import Any, Callable
 
-from PyQt6.QtCore import Qt
+from PyQt6.QtCore import Qt, pyqtSignal
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QComboBox,
@@ -44,6 +44,8 @@ logger = logging.getLogger(__name__)
 
 class ZoneAchat(BaseBasketZone):
     """Purchases mode basket with supplier management and facture editing."""
+
+    payment_completed = pyqtSignal()
 
     @property
     def mode_key(self) -> str:
@@ -619,6 +621,7 @@ class ZoneAchat(BaseBasketZone):
         self.table.clearSelection()
         self.table.setCurrentCell(-1, -1)
         self._emit_transaction_signal("achats", int(total_facture))
+        self.payment_completed.emit()
 
     def _save_reception_row(
         self,

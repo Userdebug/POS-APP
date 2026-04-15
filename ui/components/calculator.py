@@ -384,7 +384,9 @@ class CalculatorWidget(QWidget):
 
         # Quantity button (Q)
         if text == "Q":
-            return base + """
+            return (
+                base
+                + """
                 QPushButton {
                     font-weight: bold;
                     background-color: #1f6feb;
@@ -393,10 +395,13 @@ class CalculatorWidget(QWidget):
                 QPushButton:hover { background-color: #1a5fd4; }
                 QPushButton:pressed { background-color: #1f6feb; }
             """
+            )
 
         # Operator buttons
         if text in ("+", "\u2212", "\u00d7", "\u00f7", "="):
-            return base + """
+            return (
+                base
+                + """
                 QPushButton {
                     font-size: 14px;
                     font-weight: bold;
@@ -406,10 +411,13 @@ class CalculatorWidget(QWidget):
                 QPushButton:hover { background-color: #475569; }
                 QPushButton:pressed { background-color: #1e293b; }
             """
+            )
 
         # Clear button
         if text == "C":
-            return base + """
+            return (
+                base
+                + """
                 QPushButton {
                     font-weight: bold;
                     background-color: #991b1b;
@@ -418,6 +426,7 @@ class CalculatorWidget(QWidget):
                 QPushButton:hover { background-color: #b91c1c; }
                 QPushButton:pressed { background-color: #7f1d1d; }
             """
+            )
 
         return base
 
@@ -503,6 +512,7 @@ class CalculatorWidget(QWidget):
             return
 
         self.quantite_emise.emit(value)
+        self._set_display("0")
 
     def _on_valider_clicked(self) -> None:
         """Handle validate button click."""

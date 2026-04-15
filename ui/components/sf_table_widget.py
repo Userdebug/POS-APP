@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from PyQt6.QtCore import QDate, Qt
-from PyQt6.QtGui import QBrush, QColor, QFont
+from PyQt6.QtGui import QColor, QFont
 from PyQt6.QtWidgets import (
     QAbstractItemView,
     QDateEdit,
@@ -80,7 +80,7 @@ class SFTableWidget(QWidget):
                 color: #e5e7eb;
                 border: 1px solid #374151;
                 padding: 4px 8px;
-                font-size: 10px;
+                font-size: 12px;
             }
             QDateEdit::drop-down {
                 width: 16px;
@@ -107,22 +107,8 @@ class SFTableWidget(QWidget):
         self._table.setShowGrid(True)
         self._table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self._table.setMaximumHeight(65)  # Compact height for 2 rows
-        self._table.setStyleSheet("""
-            QTableWidget {
-                border: 1px solid #374151;
-                background-color: #1f2937;
-            }
-            QTableWidget::item {
-                border: 1px solid #374151;
-                background-color: #1f2937;
-                color: #e5e7eb;
-                padding: 4px 8px;
-            }
-            QTableWidget::item:selected {
-                background-color: #374151;
-                color: #ffffff;
-            }
-        """)
+        # No local stylesheet - let global stylesheet apply
+        # Global stylesheet has QWidget { color: $text_default } which may override
         container_layout.addWidget(self._table, 1)
 
         layout.addWidget(container)
@@ -189,11 +175,11 @@ class SFTableWidget(QWidget):
             margin_text = self._format_margin(margin_pct)
 
             margin_item = self._item(margin_text)
-            bg_color = self._margin_bg_color(margin_pct)
-            if bg_color:
-                margin_item.setBackground(QBrush(bg_color))
-
             self._table.setItem(1, col, margin_item)
+
+            # Set foreground color AFTER adding to table
+            fg_color = self._margin_fg_color(margin_pct)
+            margin_item.setForeground(fg_color)
 
         # Column sizing
         h_header = self._table.horizontalHeader()  # type: ignore
@@ -235,14 +221,14 @@ class SFTableWidget(QWidget):
         return f"{pct:.1f}%"
 
     @staticmethod
-    def _margin_bg_color(pct: float) -> QColor | None:
-        """Get background color based on margin percentage.
+    def _margin_fg_color(pct: float) -> QColor:
+        """Get text color based on margin percentage.
 
         Args:
             pct: Margin percentage.
 
         Returns:
-            QColor for background, or None for default.
+            QColor for text color.
         """
         if pct < 15:
             return QColor("#fca5a5")  # Red

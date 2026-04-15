@@ -78,11 +78,17 @@ class MainController(QObject):
         # Data loader thread (started on demand)
         self._loader_thread: DataLoaderThread | None = None
 
-        # Global refresh timer (90 seconds) - starts after first header refresh
+        # Global refresh timer - DISABLED by default
+        # Products rarely change during active POS use, refresh only on explicit actions
+        # Re-enable via set_global_refresh_enabled(True) if periodic refresh is needed
         self._global_refresh_timer = QTimer(self)
         self._global_refresh_timer.timeout.connect(self.refresh_header_data)
         self._global_refresh_timer.setInterval(90000)
+        self._global_refresh_enabled = False
         self._global_refresh_started = False
+
+        # Cache for header data to avoid unnecessary DB queries
+        self._cached_header_data: dict | None = None
 
     # ==================== App State ====================
 
@@ -272,6 +278,13 @@ class MainController(QObject):
         self._refresh_all_data(today)
         self.refresh_header_data()
 
+        # Update live CA for SF table margin display
+        self.reports_presenter.update_live_ca(today)
+
+        # Refresh products to update stock quantities in ZoneProduits
+        # This ensures UI reflects new stock levels after encaissement
+        self.load_products()
+
     def _on_transaction_finalisee(self, mode: str, montant: int) -> None:
         """Handle transaction finalization - refresh data.
 
@@ -279,13 +292,15 @@ class MainController(QObject):
             mode: Transaction mode (e.g., 'caisse', 'especes')
             montant: Transaction amount
         """
-        # Refresh dashboard totals
+        # Refresh dashboard totals and header data after any transaction
         from datetime import date
 
         today = date.today().isoformat()
         self._refresh_all_data(today)
+        self.refresh_header_data()
 
-        # Reload products (triggers data_loaded signal)
+        # Refresh products to update stock quantities in ZoneProduits
+        # This ensures UI reflects new stock levels after encaisser or payer
         self.load_products()
 
     def on_transaction_finalised(self, mode: str = "", montant: int = 0) -> None:
@@ -468,7 +483,14 @@ class MainController(QObject):
 
         Collects: user name, today's transaction count, promo products,
         near-DLV products, and products to remove.
+
+        Uses caching to avoid unnecessary DB queries. Call force_refresh=True
+        to bypass cache.
         """
+        self.refresh_header_data_forced()
+
+    def refresh_header_data_forced(self) -> None:
+        """Force refresh header data bypassing cache."""
         from datetime import datetime
 
         today = datetime.now().strftime("%d/%m/%y")
@@ -495,13 +517,20 @@ class MainController(QObject):
             len(near_dlv_products),
             len(to_remove_products),
         )
+        self._cached_header_data = header_data
         self.header_data_updated.emit(header_data)
 
-        # Start global refresh timer after first successful refresh
-        if not self._global_refresh_started:
-            self._global_refresh_started = True
+    def set_global_refresh_enabled(self, enabled: bool) -> None:
+        """Enable or disable the global refresh timer.
+
+        By default, the timer is disabled to reduce DB load.
+        Enable only if periodic refresh is specifically needed.
+        """
+        self._global_refresh_enabled = enabled
+        if enabled and self._global_refresh_started:
             self._global_refresh_timer.start()
-            logger.debug("Global refresh timer started (90s interval)")
+        else:
+            self._global_refresh_timer.stop()
 
     # ==================== Navigation ====================
 

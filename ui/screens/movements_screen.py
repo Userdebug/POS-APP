@@ -6,7 +6,7 @@ import sys
 # Ajoute le répertoire de l'application au path pour rendre les imports absolus robustes
 sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-from PyQt6.QtCore import pyqtSignal
+from PyQt6.QtCore import pyqtSignal, QTimer
 from PyQt6.QtWidgets import QHBoxLayout, QLabel, QMessageBox, QPushButton, QVBoxLayout, QWidget
 
 from services.mouvements_service import MOUVEMENT_LABELS, apply_movement
@@ -34,7 +34,7 @@ class EcranMouvements(QWidget):
         self.produit_info_panel = ProduitInfoPanel()
         self.mouvements_history_panel = MouvementsHistoryPanel()
         self.mouvements_actions_panel = MouvementsActionsPanel()
-        self.produits_table = ProduitsTable()
+        self.produits_table = ProduitsTable(db_manager)
 
         self.db_manager = db_manager
         self.vendeur_nom = vendeur_nom
@@ -97,8 +97,8 @@ class EcranMouvements(QWidget):
                 self._produit_actif_id = target_id
                 self.produit_info_panel.update_info(produit)
                 self._save_product(produit)
-                # Re-emit for external listeners (main_window)
-                self.produit_modifie.emit(produit)
+                # Defer signal emission to prevent UI freeze during cascading updates
+                QTimer.singleShot(0, lambda p=dict(produit): self.produit_modifie.emit(p))
                 return
 
     def _on_action_declenchee(self, data: tuple) -> None:
@@ -174,6 +174,8 @@ class EcranMouvements(QWidget):
             apres_r=apres_r,
         )
         self._save_product(produit)
+        # Emit modification so main_window can update zone_produits
+        self.produit_modifie.emit(dict(produit))
 
     def _get_produit_actif(self) -> dict | None:
         for produit in self.produits_table.get_produits():

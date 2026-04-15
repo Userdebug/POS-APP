@@ -73,7 +73,7 @@ class SFReportDialog(TableReportDialog):
         date_debut_label = QLabel("Date début:")
         self.date_debut = QDateEdit()
         self.date_debut.setCalendarPopup(True)
-        self.date_debut.setDisplayFormat("yyyy-MM-dd")
+        self.date_debut.setDisplayFormat("dd/MM/yy")
         self.date_debut.setDate(self.start_date)
         self.date_debut.setReadOnly(True)  # Make readonly since set externally
 
@@ -81,7 +81,7 @@ class SFReportDialog(TableReportDialog):
         date_fin_label = QLabel("Date fin:")
         self.date_fin = QDateEdit()
         self.date_fin.setCalendarPopup(True)
-        self.date_fin.setDisplayFormat("yyyy-MM-dd")
+        self.date_fin.setDisplayFormat("dd/MM/yy")
         self.date_fin.setDate(self.end_date)
         self.date_fin.setReadOnly(True)  # Make readonly since set to current date
 

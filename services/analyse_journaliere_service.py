@@ -79,6 +79,7 @@ class AnalyseJournaliereService:
                         c.nom AS sous_categorie,
                         SUM(a.achats) AS achats_ttc,
                         SUM(a.ca) AS ca_ttc,
+                        SUM(a.ca_temporaire) AS ca_temporaire,
                         SUM(a.env) AS env_ttc,
                         SUM(a.vente_theorique) AS vente_theo_ttc,
                         SUM(a.marge) AS marge_ttc
@@ -106,7 +107,14 @@ class AnalyseJournaliereService:
                 for row in aggr_rows:
                     sous_cat = str(row["sous_categorie"])
                     ca = float(row["ca_ttc"] or 0)
-                    marge = float(row["marge_ttc"] or 0)
+                    ca_temporaire = (
+                        float(row["ca_temporaire"]) if "ca_temporaire" in row.keys() else 0.0
+                    )
+                    ca_temporaire = ca_temporaire or 0.0
+                    if ca == 0:
+                        ca = ca_temporaire
+                    vente_theo = float(row["vente_theo_ttc"] or 0)
+                    marge = vente_theo - ca
 
                     # Calcul sécurisé du pourcentage (évite DivisionByZero)
                     marge_percent = round((marge / ca) * 100, 2) if ca > 0 else 0.0
@@ -196,3 +204,90 @@ class AnalyseJournaliereService:
     def _connect(self) -> "contextlib.AbstractContextManager[sqlite3.Connection]":
         """Get a database connection."""
         return self.db_manager._connect()
+
+    def compute_temporary_ca(self, jour: str) -> dict[str, int]:
+        """Compute temporary CA from sales for a given day using PA * 1.2.
+
+        Args:
+            jour: Date in ISO format (YYYY-MM-DD).
+
+        Returns:
+            Dictionary mapping category names to temporary CA values.
+        """
+        if not self._validate_date_format(jour):
+            return {}
+
+        try:
+            with self._connect() as conn:
+                conn.row_factory = sqlite3.Row
+
+                query = """
+                    SELECT
+                        c.nom AS sous_categorie,
+                        SUM(v.quantite * CAST(ROUND(p.pa * 1.2, 0) AS INTEGER)) AS ca_temporaire
+                    FROM ventes v
+                    JOIN produits p ON v.produit_id = p.id
+                    JOIN categories c ON p.categorie_id = c.id
+                    JOIN categories parent ON c.parent_id = parent.id
+                    WHERE v.jour = ? AND v.deleted = 0 AND parent.nom = ?
+                    GROUP BY c.nom
+                """
+                rows = conn.execute(query, (jour, self._CATEGORY_1_NAME)).fetchall()
+
+                return {str(row["sous_categorie"]): int(row["ca_temporaire"] or 0) for row in rows}
+
+        except Exception as e:
+            logger.error(f"Erreur compute_temporary_ca pour {jour}: {e}", exc_info=True)
+            return {}
+
+    def update_temporary_ca(self, jour: str) -> None:
+        """Compute and update temporary CA from sales for a given day.
+
+        Creates rows in analyse_journaliere_categories if they don't exist.
+
+        Args:
+            jour: Date in ISO format (YYYY-MM-DD).
+        """
+        if not self._validate_date_format(jour):
+            return
+
+        ca_by_category = self.compute_temporary_ca(jour)
+        if not ca_by_category:
+            return
+
+        try:
+            with self._connect() as conn:
+                for categorie_nom, ca_temporaire in ca_by_category.items():
+                    cat_id_row = conn.execute(
+                        "SELECT id FROM categories WHERE nom = ?", (categorie_nom,)
+                    ).fetchone()
+
+                    if not cat_id_row:
+                        continue
+
+                    categorie_id = cat_id_row["id"]
+
+                    existing = conn.execute(
+                        "SELECT id FROM analyse_journaliere_categories WHERE jour = ? AND categorie_id = ?",
+                        (jour, categorie_id),
+                    ).fetchone()
+
+                    if existing:
+                        conn.execute(
+                            "UPDATE analyse_journaliere_categories SET ca_temporaire = ? WHERE jour = ? AND categorie_id = ?",
+                            (ca_temporaire, jour, categorie_id),
+                        )
+                    else:
+                        conn.execute(
+                            """INSERT INTO analyse_journaliere_categories
+                               (jour, categorie_id, si, achats, ca, sf, env, vente_theorique, marge, cloturee)
+                               VALUES (?, ?, 0, 0, 0, 0, 0, 0, 0, 0)""",
+                            (jour, categorie_id),
+                        )
+                        conn.execute(
+                            "UPDATE analyse_journaliere_categories SET ca_temporaire = ? WHERE jour = ? AND categorie_id = ?",
+                            (ca_temporaire, jour, categorie_id),
+                        )
+
+        except Exception as e:
+            logger.error(f"Erreur update_temporary_ca pour {jour}: {e}", exc_info=True)

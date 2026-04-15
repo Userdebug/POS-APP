@@ -93,7 +93,7 @@ class ZoneActionsEtats(QWidget):
         dialog.controls_layout.addWidget(QLabel("Date:"))
         date_jour = QDateEdit()
         date_jour.setCalendarPopup(True)
-        date_jour.setDisplayFormat("yyyy-MM-dd")
+        date_jour.setDisplayFormat("dd/MM/yy")
         date_jour.setDate(QDate.currentDate())
         dialog.controls_layout.addWidget(date_jour)
         btn_refresh = QPushButton("Actualiser")

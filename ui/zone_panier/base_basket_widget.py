@@ -11,7 +11,7 @@ import logging
 from datetime import datetime
 from typing import Any, Callable
 
-from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import Qt, pyqtSignal, QTimer
 from PyQt6.QtGui import QBrush, QColor, QIcon
 from PyQt6.QtWidgets import (
     QMessageBox,
@@ -48,6 +48,7 @@ class BaseBasketZone(QWidget):
     validation_state_changed = pyqtSignal(bool)
     nouveau_produit_enregistre = pyqtSignal(dict)
     mode_switch_request = pyqtSignal()
+    validation_completed = pyqtSignal()
 
     # Subclasses must set: mode_key, _draft_key
 
@@ -69,6 +70,12 @@ class BaseBasketZone(QWidget):
         self._refresh_lock = False
         self._active_row = -1
         self._trash_icon: QIcon | None = None
+
+        # Debounce timer for batched refreshes (prevents multiple rapid refreshes)
+        self._refresh_debounce_timer = QTimer(self)
+        self._refresh_debounce_timer.setSingleShot(True)
+        self._refresh_debounce_timer.timeout.connect(self._execute_debounced_refresh)
+        self._pending_refresh = False
 
         # Row marker colors
         self._active_row_fg = QColor("#ffffff")
@@ -123,6 +130,40 @@ class BaseBasketZone(QWidget):
     # ==================== Refresh ====================
 
     def refresh(self) -> None:
+        """Schedule a debounced refresh to batch multiple rapid updates.
+
+        This prevents excessive UI refreshes when multiple changes occur in quick succession
+        (e.g., rapid quantity changes). The actual refresh happens after a short delay.
+        """
+        # If already locked (refresh in progress), just mark pending
+        if self._refresh_lock:
+            self._pending_refresh = True
+            return
+
+        # If timer already running, just mark pending (don't restart)
+        if self._refresh_debounce_timer.isActive():
+            self._pending_refresh = True
+            return
+
+        # Start debounce timer (50ms delay)
+        self._refresh_debounce_timer.start(50)
+
+    def _execute_debounced_refresh(self) -> None:
+        """Execute the actual refresh after debounce delay."""
+        if self._refresh_lock:
+            # Still locked, schedule another attempt
+            self._pending_refresh = True
+            self._refresh_debounce_timer.start(20)
+            return
+
+        self._do_refresh()
+
+        # If more refreshes were requested during refresh, process them
+        if self._pending_refresh:
+            self._pending_refresh = False
+            self._refresh_debounce_timer.start(20)
+
+    def _do_refresh(self) -> None:
         """Clear and repopulate the table from current basket data."""
         if self._refresh_lock:
             return
@@ -218,6 +259,7 @@ class BaseBasketZone(QWidget):
         self.pm.add(final_item)
         self.drafts.clear_draft(self._draft_key)
         self.refresh()
+        self.validation_completed.emit()
         return final_item
 
     # ==================== Product Management ====================

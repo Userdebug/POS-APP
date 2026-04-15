@@ -1,7 +1,10 @@
 """Infos produit (haut gauche)."""
 
 from PyQt6.QtCore import Qt, pyqtSignal
+from PyQt6.QtCore import QDate
 from PyQt6.QtWidgets import (
+    QCalendarWidget,
+    QDateEdit,
     QFormLayout,
     QGridLayout,
     QGroupBox,
@@ -13,7 +16,12 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
-from core.formatters import format_dlv_dlc_date, format_grouped_int, parse_grouped_int
+from core.formatters import (
+    format_dlv_dlc_date,
+    format_grouped_int,
+    parse_expiry_dates,
+    parse_grouped_int,
+)
 
 
 class ProduitInfoPanel(QGroupBox):
@@ -71,7 +79,9 @@ class ProduitInfoPanel(QGroupBox):
 
         self.input_nom = QLineEdit()
         self.input_categorie = QLineEdit()
-        self.input_dlv = QLineEdit()
+        self.input_dlv = QDateEdit()
+        self.input_dlv.setCalendarPopup(True)
+        self.input_dlv.setDisplayFormat("dd/MM/yy")
         self.input_pa = QLineEdit()
         self.input_pv = QLineEdit()
         self.input_prix_promo = QLineEdit()
@@ -160,7 +170,12 @@ class ProduitInfoPanel(QGroupBox):
         self.lbl_prc.setText(f"{format_grouped_int(int(produit.get('prc', round(pa * 1.2))))} Ar")
         self.input_nom.setText(str(produit.get("nom", "")))
         self.input_categorie.setText(str(produit.get("categorie", "")))
-        self.input_dlv.setText(format_dlv_dlc_date(str(produit.get("dlv_dlc", ""))))
+        dlv_str = str(produit.get("dlv_dlc", ""))
+        parsed = parse_expiry_dates(dlv_str)
+        if parsed:
+            self.input_dlv.setDate(QDate(parsed.year, parsed.month, parsed.day))
+        else:
+            self.input_dlv.setDate(QDate())
         self.input_pa.setText(format_grouped_int(pa))
         self.input_pv.setText(format_grouped_int(int(produit.get("pv", 0))))
         self.input_prix_promo.setText(format_grouped_int(int(produit.get("prix_promo", pa))))
@@ -203,7 +218,8 @@ class ProduitInfoPanel(QGroupBox):
         updated["categorie"] = self.input_categorie.text().strip() or str(
             self._produit_actuel.get("categorie", "Sans categorie")
         )
-        updated["dlv_dlc"] = format_dlv_dlc_date(self.input_dlv.text().strip())
+        dlv_date = self.input_dlv.date()
+        updated["dlv_dlc"] = dlv_date.toString("yyyy-MM-dd")
         updated["pa"] = pa
         updated["prc"] = int(round(pa * 1.2))
         updated["pv"] = pv

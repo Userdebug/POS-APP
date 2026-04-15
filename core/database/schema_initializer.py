@@ -143,7 +143,7 @@ class SchemaInitializer:
                     conn.execute(f"""
                         INSERT INTO analyse_journaliere_categories_new
                         (id, jour, categorie_id, si, achats, ca, sf, vente_theorique, marge, cloturee, created_at, updated_at)
-                        SELECT {', '.join(select_columns)}
+                        SELECT {", ".join(select_columns)}
                         FROM analyse_journaliere_categories
                     """)
 
@@ -166,3 +166,15 @@ class SchemaInitializer:
                         conn.execute(
                             "ALTER TABLE analyse_journaliere_categories ADD COLUMN env INTEGER NOT NULL DEFAULT 0"
                         )
+
+                # Add ca_temporaire column for live CA calculation from sales (PA * 1.2)
+                ajc_columns_after = {
+                    row[1]
+                    for row in conn.execute(
+                        "PRAGMA table_info(analyse_journaliere_categories)"
+                    ).fetchall()
+                }
+                if "ca_temporaire" not in ajc_columns_after:
+                    conn.execute(
+                        "ALTER TABLE analyse_journaliere_categories ADD COLUMN ca_temporaire INTEGER NOT NULL DEFAULT 0"
+                    )

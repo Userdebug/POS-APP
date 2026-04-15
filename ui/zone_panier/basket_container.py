@@ -34,6 +34,7 @@ class BasketContainer(QWidget):
     validation_state_changed = pyqtSignal(bool)
     nouveau_produit_enregistre = pyqtSignal(dict)
     sales_day_recorded = pyqtSignal(object)
+    validation_completed = pyqtSignal()
 
     VENTE_INDEX = 0
     ACHAT_INDEX = 1
@@ -72,6 +73,7 @@ class BasketContainer(QWidget):
             zone.validation_state_changed.connect(self.validation_state_changed.emit)
             zone.nouveau_produit_enregistre.connect(self.nouveau_produit_enregistre.emit)
             zone.mode_switch_request.connect(self._toggle_mode)
+            zone.validation_completed.connect(self.validation_completed.emit)
 
         self.zone_vente.sales_day_recorded.connect(self.sales_day_recorded.emit)
 
@@ -123,7 +125,7 @@ class BasketContainer(QWidget):
         return self.active_zone.current_validation_enabled()
 
     def switch_basket(self, nom: str) -> None:
-        """Switch P1/P2/P3 — only valid in vente mode."""
+        """Switch P1/P2/N/P — only valid in vente mode."""
         if isinstance(self.active_zone, ZoneVente):
             self.active_zone.switch_basket(nom)
 

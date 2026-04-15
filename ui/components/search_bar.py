@@ -62,7 +62,7 @@ class SearchBar(QWidget):
         # Search input
         self._input = QLineEdit()
         self._input.setPlaceholderText(placeholder)
-        self._input.setMaximumHeight(28)
+        self._input.setMaximumHeight(32)
         self._input.setClearButtonEnabled(True)
         self._input.textChanged.connect(self._on_text_changed)
         layout.addWidget(self._input, 1)
@@ -113,6 +113,11 @@ class SearchBar(QWidget):
     def setFocus(self) -> None:
         """Set focus to the search input."""
         self._input.setFocus()
+
+    def focus_and_select(self) -> None:
+        """Set focus to the search input and select all text."""
+        self._input.setFocus()
+        self._input.selectAll()
 
     def setPlaceholderText(self, text: str) -> None:
         """Set placeholder text."""

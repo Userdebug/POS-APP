@@ -110,13 +110,43 @@ class ZoneProduits(QWidget):
 
     def set_produits(self, produits):
         new_produits = list(produits or [])
-        # Only rebuild if data actually changed
+
+        # Fast path: if data is identical, skip refresh entirely
         if new_produits == self.produits:
             return
+
+        # Check if product IDs are the same - if so, use incremental update
+        old_ids = {p.get("id") for p in self.produits}
+        new_ids = {p.get("id") for p in new_produits}
+
+        if old_ids == new_ids and len(new_produits) == len(self.produits):
+            # Same products, just different data - update in place
+            self._update_products_incremental(new_produits)
+            return
+
+        # Full replacement needed
         self.produits = new_produits
         self.search_text = ""
         self.search_input.clear()
         self._refresh_table()
+
+    def _update_products_incremental(self, new_produits: list) -> None:
+        """Update products in-place without full table rebuild.
+
+        Only updates rows that changed, preserving table structure.
+        """
+        # Create a lookup map for new product data
+        new_map = {p.get("id"): p for p in new_produits}
+
+        # Update existing rows
+        for i, row in enumerate(self.produits):
+            prod_id = row.get("id")
+            if prod_id in new_map:
+                self.produits[i] = new_map[prod_id]
+
+        # Re-apply search filter if active
+        if self.search_text:
+            self._refresh_table()
 
     def _on_search_changed(self, text: str) -> None:
         """Handle debounced search text from SearchBar."""
@@ -362,8 +392,8 @@ class ZoneProduits(QWidget):
         """Return a copy of the current list of produits for external access."""
         return list(self.produits)
 
-    def update_produit(self, produit: dict) -> None:
-        """Update a single product in the list and refresh the table display.
+    def update_single_product(self, produit: dict) -> None:
+        """Update a single product in the list without full table refresh.
 
         Args:
             produit: Product dict with 'id' field to identify which product to update.
@@ -371,8 +401,46 @@ class ZoneProduits(QWidget):
         target_id = produit.get("id")
         if target_id is None:
             return
+
+        # Ensure target_id is int for consistent comparison
+        try:
+            target_id = int(target_id)
+        except (ValueError, TypeError):
+            return
+
+        # Find and update the product in our list
+        updated = False
         for i, row in enumerate(self.produits):
-            if row.get("id") == target_id:
+            row_id = row.get("id")
+            # Handle both int and string IDs for comparison
+            try:
+                row_id = int(row_id) if row_id is not None else None
+            except (ValueError, TypeError):
+                pass
+            if row_id == target_id:
                 self.produits[i] = dict(produit)
-                self._refresh_table()
-                return
+                # Ensure ID is int
+                self.produits[i]["id"] = target_id
+                updated = True
+                break
+
+        if not updated:
+            # Product not in list, add it
+            new_prod = dict(produit)
+            new_prod["id"] = target_id
+            self.produits.append(new_prod)
+
+        # Check if product passes current filters
+        if self.search_text:
+            if not self._matches_search(produit):
+                # Product no longer matches filter, check if it needs removal
+                if target_id == produit.get("id"):
+                    # Just update in place, user can refresh to see removal
+                    pass
+
+        # Only refresh if the product is visible in the current filtered view
+        if self._matches_search(produit):
+            self._refresh_table()
+
+    # Keep update_produit as alias for backward compatibility
+    update_produit = update_single_product

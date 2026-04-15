@@ -61,8 +61,8 @@ QPushButton#DangerButton {
 QPushButton#DangerButton:hover {
     background-color: #dc2626;
 }
-QPushButton#DangerButton:hover {
-    background-color: #dc2626;
+QPushButton#btn_np {
+    color: #fbbf24;
 }
 QToolButton#CoffreButton, QPushButton#CoffreButton {
     background-color: #b8860b;

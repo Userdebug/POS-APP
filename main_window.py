@@ -26,6 +26,7 @@ from PyQt6.QtWidgets import (
 )
 
 from controllers.main_controller import MainController
+from core.focus_manager import FocusManager
 from ui.components.cash_counter_footer import CashCounterFooter
 from ui.components.defilling_ticker_widget import DefillingWidget
 from ui.components.header_info_widget import HeaderInfoWidget
@@ -91,6 +92,10 @@ class MainWindow(QMainWindow):
             tracking_service=self.controller.tracking_service,
         )
         self.zone_produits = ZoneProduits()
+
+        # Focus manager for search bar restoration after dialogs
+        self.focus_manager = FocusManager()
+        self.focus_manager.set_focus_target(self.zone_produits.search_input)
 
         # Get user info for screens
         vendeur_nom = str(self.user.get("nom", "Operateur"))
@@ -181,6 +186,9 @@ class MainWindow(QMainWindow):
         # Initialize coffre button text with current safe balance
         _, display_text = self.controller.get_safe_balance()
         self.update_safe_balance(display_text)
+
+        # Set focus to search bar on app open
+        QTimer.singleShot(100, self.focus_manager.restore_focus)
 
     def _setup_sidebar(self) -> None:
         """Setup sidebar signal connections."""
@@ -308,56 +316,33 @@ class MainWindow(QMainWindow):
 
         self.zone_actions_etats.set_valider_enabled(self.zone_panier.current_validation_enabled())
 
+        # Connect focus restoration after dialogs/validation
+        self.zone_panier.zone_vente.dialog_closed.connect(self.focus_manager.restore_focus)
+        self.zone_panier.zone_achat.payment_completed.connect(self.focus_manager.restore_focus)
+        self.zone_panier.validation_completed.connect(self.focus_manager.restore_focus)
+
     def _on_mode_change(self, mode: str) -> None:
         """Handle mode change with minimal UI refresh."""
         try:
-            # 1. Update central state (controller)
             self.controller.update_app_state(mode=mode.lower())
-
-            # 2. Update only the relevant UI zone
             if hasattr(self, "zone_actions_etats"):
                 self.zone_actions_etats.update_ui_for_mode(mode)
-
-            # 3. Defer heavy refresh operations to avoid blocking UI
-            QTimer.singleShot(0, lambda: self._deferred_mode_refresh(mode))
-
+            self._deferred_mode_refresh(mode)
         except Exception as e:
             logging.error(f"Mode change error: {e}")
 
     def _deferred_mode_refresh(self, mode: str) -> None:
-        """Deferred refresh for mode change - batched UI updates."""
-        import time
-
-        start_time = time.time()
-        logger.debug(f"Starting deferred mode refresh for mode: {mode}")
-
+        """Lightweight mode switch - only update UI elements, skip table rebuild."""
         try:
-            # Batch UI updates to avoid multiple redraws
+            # Only update action button text and validation state (no table rebuild)
             if hasattr(self, "zone_panier"):
-                self.zone_panier.setUpdatesEnabled(False)
-            if hasattr(self, "zone_actions_etats"):
-                self.zone_actions_etats.setUpdatesEnabled(False)
-
-            # Perform heavy refresh operations
-            if hasattr(self, "zone_panier"):
-                self.zone_panier.active_zone.refresh()
                 self.zone_panier.active_zone._update_action_button_state()
                 self.zone_panier.active_zone._emit_validation_state()
 
-            # Update validation button state
             self._sync_validation_button()
 
-        finally:
-            # Re-enable updates and repaint
-            if hasattr(self, "zone_panier"):
-                self.zone_panier.setUpdatesEnabled(True)
-                self.zone_panier.repaint()
-            if hasattr(self, "zone_actions_etats"):
-                self.zone_actions_etats.setUpdatesEnabled(True)
-                self.zone_actions_etats.repaint()
-
-            end_time = time.time()
-            logger.debug(f"Deferred mode refresh completed in {end_time - start_time:.3f}s")
+        except Exception as e:
+            logging.error(f"Mode refresh error: {e}")
 
     def _sync_validation_button(self) -> None:
         """Update validation button state without heavy refresh."""
@@ -373,29 +358,26 @@ class MainWindow(QMainWindow):
             self.zone_panier.validate_current_line()
 
     def _on_product_modified(self, produit: dict) -> None:
-        """Handle product modification from mouvements screen - refresh products list and header."""
-        # Update zone_produits with the modified product
-        produits = self.zone_produits.get_produits()
-        for i, p in enumerate(produits):
-            if p.get("id") == produit.get("id"):
-                produits[i] = dict(produit)
-                break
-        else:
-            # Product not in list, reload all
-            self.controller.load_products()
-            return
-        self.zone_produits.set_produits(produits)
+        """Handle product modification from mouvements screen - refresh products list and header.
+
+        Uses incremental update instead of full reload to avoid UI stuttering.
+        """
+        # Use targeted update instead of full reload
+        self.zone_produits.update_single_product(produit)
+        # Also update the movements screen products table if visible
+        if hasattr(self, "ecran_mouvements"):
+            self.ecran_mouvements.produits_table.update_produit(produit)
         # Refresh header data to update promo/DLV counts
         self.controller.refresh_header_data()
 
     def _on_new_product_saved(self, produit: dict) -> None:
-        """Handle new product saved from AddProduitDialog - refresh products list."""
-        # Reload products from database to include the new product
+        """Handle new product saved from AddProduitDialog - refresh products list.
+
+        Loads products once and uses incremental updates.
+        """
+        # Load products (this will trigger set_produits which now has change detection)
         self.controller.load_products()
-        # Refresh header data to update promo/DLV counts
-        self.controller.refresh_header_data()
-        # Refresh cart display to update any product data changes
-        self.zone_panier.refresh()
+        # Refresh header data - this now uses the controller's method which is optimized
 
     # ==================== Passive Update Methods ====================
     # These methods ONLY update UI widgets - no business logic

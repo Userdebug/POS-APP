@@ -64,8 +64,9 @@ class ProduitsTable(QGroupBox):
     produit_selectionne = pyqtSignal(dict)
     categories_modifiees = pyqtSignal(dict)
 
-    def __init__(self) -> None:
+    def __init__(self, db_manager=None) -> None:
         super().__init__("Produits")
+        self._db_manager = db_manager
         self._produits = []
         self._categorie_active = "Tous"
         self._recherche = ""
@@ -75,6 +76,7 @@ class ProduitsTable(QGroupBox):
         self._button_grid: _CategoryButtonGrid | None = None
 
         self._build_ui()
+        self._load_categories_from_db()
         self.set_produits(self._default_produits())
 
     def _build_ui(self) -> None:
@@ -126,10 +128,31 @@ class ProduitsTable(QGroupBox):
             min_chars=2,
         )
         self.search_input.search_changed.connect(self._on_search_changed)
-        footer.addWidget(self.search_input, 1)
+        self.search_input.setMinimumWidth(150)
+        self.search_input.setMaximumWidth(250)
+        footer.addWidget(self.search_input, 0)
         layout.addLayout(footer)
 
-        self._init_default_categories()
+    def _load_categories_from_db(self) -> None:
+        """Load categories dynamically from database (only subcategories)."""
+        if self._db_manager is None:
+            self._init_default_categories()
+            return
+        try:
+            # Get only subcategories (categories with a parent_id)
+            all_categories = self._db_manager.categories.get_all_categories()
+            subcategories = [c for c in all_categories if c.parent_id is not None]
+            if subcategories:
+                # Build map from category objects (use nom as key)
+                self._categories_map = {cat.nom: cat.nom for cat in subcategories}
+                self._build_category_buttons()
+                self.categories_modifiees.emit(self._categories_map)
+            else:
+                # Fall back to defaults if no subcategories
+                self._init_default_categories()
+        except Exception:
+            # Fall back to defaults if DB query fails
+            self._init_default_categories()
 
     def _init_default_categories(self) -> None:
         """Initialize with default hardcoded categories (fallback)."""

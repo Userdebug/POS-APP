@@ -1,6 +1,6 @@
 """ZoneVente — standalone sales/caisse basket widget.
 
-Handles P1/P2/P3 basket switching, encaissement, and stock validation.
+Handles P1/P2/N/P basket switching, encaissement, and stock validation.
 Owns its own BasketManager — no shared state with ZoneAchat.
 """
 
@@ -41,9 +41,10 @@ logger = logging.getLogger(__name__)
 
 
 class ZoneVente(BaseBasketZone):
-    """Sales mode basket with P1/P2/P3 switching and encaissement."""
+    """Sales mode basket with P1/P2/N/P switching and encaissement."""
 
     sales_day_recorded = pyqtSignal(object)
+    dialog_closed = pyqtSignal()
 
     @property
     def mode_key(self) -> str:
@@ -123,10 +124,11 @@ class ZoneVente(BaseBasketZone):
         self.btn_p2.setMinimumHeight(54)
         self.btn_p2.clicked.connect(lambda: self.switch_basket("P2"))
 
-        self.btn_p3 = QPushButton("P3")
-        self.btn_p3.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        self.btn_p3.setMinimumHeight(54)
-        self.btn_p3.clicked.connect(lambda: self.switch_basket("P3"))
+        self.btn_np = QPushButton("N/P")
+        self.btn_np.setObjectName("btn_np")
+        self.btn_np.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        self.btn_np.setMinimumHeight(54)
+        self.btn_np.clicked.connect(lambda: self.switch_basket("N/P"))
 
         self.btn_clear = QPushButton("Vider")
         self.btn_clear.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
@@ -147,7 +149,7 @@ class ZoneVente(BaseBasketZone):
             self.btn_mode_switch,
             self.btn_p1,
             self.btn_p2,
-            self.btn_p3,
+            self.btn_np,
             self.btn_clear,
             self.btn_encaisser,
         ):
@@ -245,20 +247,23 @@ class ZoneVente(BaseBasketZone):
     # ==================== Basket Switching ====================
 
     def switch_basket(self, nom: str) -> None:
-        """Switch between P1/P2/P3 baskets."""
+        """Switch between P1/P2/N/P baskets."""
         self.pm.switch_basket(nom)
         self.drafts.clear_draft("vente")
         self._refresh_buttons_style()
         self.refresh()
 
     def _refresh_buttons_style(self) -> None:
-        mapping = [("P1", self.btn_p1), ("P2", self.btn_p2), ("P3", self.btn_p3)]
+        mapping = [("P1", self.btn_p1), ("P2", self.btn_p2), ("N/P", self.btn_np)]
         for nom, btn in mapping:
             if self.pm.actif == nom:
                 style = PANIER_TAB_ACTIVE_BORDER_STYLE
             else:
                 style = PANIER_TAB_INACTIVE_BORDER_STYLE
-            btn.setStyleSheet(f"{PANIER_TAB_BASE_STYLE} {style}")
+            base = PANIER_TAB_BASE_STYLE
+            if nom == "N/P":
+                base = base.replace(f"color: {TOKENS['panier_tab_text']};", "color: #fbbf24;")
+            btn.setStyleSheet(f"{base} {style}")
 
     # ==================== Encaisser ====================
 
@@ -272,7 +277,7 @@ class ZoneVente(BaseBasketZone):
         else:
             self.btn_encaisser.setStyleSheet(TOTAL_CAISSE_DISABLED_STYLE)
         # Update basket button text with counts
-        for nom, btn in [("P1", self.btn_p1), ("P2", self.btn_p2), ("P3", self.btn_p3)]:
+        for nom, btn in [("P1", self.btn_p1), ("P2", self.btn_p2), ("N/P", self.btn_np)]:
             items = self.pm.paniers.get(nom, [])
             count = len(items)
             tot = sum(int(p.get("pv", 0)) * int(p.get("qte", 1)) for p in items)
@@ -332,6 +337,8 @@ class ZoneVente(BaseBasketZone):
         dialog = EncaissementDialog(self, total=summary.total, panier_name=self.pm.actif)
         if dialog.exec() != QDialog.DialogCode.Accepted:
             return
+
+        self.dialog_closed.emit()
 
         day = self._target_business_day()
         PanierTransactionsService.apply_tracking_collection(

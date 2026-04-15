@@ -8,7 +8,7 @@ from typing import Any
 class BasketManager:
     """Stocke les lignes de panier et l'etat courant (panier actif + mode)."""
 
-    _PANIER_IDS = ("P1", "P2", "P3")
+    _PANIER_IDS = ("P1", "P2", "N/P")
 
     def __init__(self) -> None:
         self.baskets: dict[str, list[dict[str, Any]]] = {key: [] for key in self._PANIER_IDS}
@@ -38,7 +38,7 @@ class BasketManager:
         """Switch to a different basket by name.
 
         Args:
-            nom: The basket name (e.g., 'P1', 'P2', 'P3')
+            nom: The basket name (e.g., 'P1', 'P2', 'N/P')
 
         Raises:
             ValueError: If the basket name is not valid.

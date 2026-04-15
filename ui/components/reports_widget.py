@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
     QGroupBox,
     QHBoxLayout,
     QHeaderView,
+    QSizePolicy,
     QTableView,
     QTableWidget,
     QTableWidgetItem,
@@ -158,6 +159,7 @@ class ReportsWidget(QWidget):
     def _build_ventes_group(self) -> QGroupBox:
         """Build Ventes Jour report group box."""
         grp = QGroupBox("Ventes Jour")
+        grp.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         lay = QVBoxLayout(grp)
         lay.setContentsMargins(2, 1, 2, 1)
         lay.setSpacing(0)
@@ -167,6 +169,9 @@ class ReportsWidget(QWidget):
         self.liste_ventes_table.setModel(self.sales_model)
         self.liste_ventes_table.setSelectionMode(QAbstractItemView.SelectionMode.NoSelection)
         self.liste_ventes_table.setEditTriggers(QAbstractItemView.EditTrigger.NoEditTriggers)
+        self.liste_ventes_table.setSizePolicy(
+            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding
+        )
 
         vertical_header = self.liste_ventes_table.verticalHeader()
         if vertical_header:
@@ -174,6 +179,11 @@ class ReportsWidget(QWidget):
             vertical_header.setDefaultSectionSize(_ROW_HEIGHT)
             vertical_header.setSectionResizeMode(QHeaderView.ResizeMode.Fixed)
             vertical_header.sectionClicked.connect(self._on_sale_row_delete_clicked)
+            vertical_header.setStyleSheet(
+                "QHeaderView::section:vertical {"
+                "  background-color: #1a1c23; color: #e5e7eb; font-size: 8pt;"
+                "}"
+            )
 
         horizontal_header = self.liste_ventes_table.horizontalHeader()
         if horizontal_header:
@@ -182,14 +192,6 @@ class ReportsWidget(QWidget):
             horizontal_header.setSectionResizeMode(2, QHeaderView.ResizeMode.ResizeToContents)
             horizontal_header.setStyleSheet(
                 "QHeaderView::section:horizontal {"
-                "  background-color: #1a1c23; color: #e5e7eb; font-size: 8pt;"
-                "}"
-            )
-
-        vertical_header = self.liste_ventes_table.verticalHeader()
-        if vertical_header:
-            vertical_header.setStyleSheet(
-                "QHeaderView::section:vertical {"
                 "  background-color: #1a1c23; color: #e5e7eb; font-size: 8pt;"
                 "}"
             )
@@ -284,6 +286,8 @@ class ReportsWidget(QWidget):
             val_item = QTableWidgetItem(format_grouped_int(int(row_data.get("total_prc", 0) or 0)))
             val_item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             self.table_oasis.setItem(row, 1, val_item)
+        # Ensure vertical header stays hidden after populating
+        self.table_oasis.verticalHeader().setVisible(False)  # type: ignore[union-attr]
 
     def _update_ventes_jour_report(self, jour: str) -> None:
         """Update Ventes Jour report table with daily sales data."""

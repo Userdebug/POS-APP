@@ -388,3 +388,20 @@ class ReportsPresenter:
             Formatted string (e.g., "1 234 567").
         """
         return format_grouped_int(amount)
+
+    def update_live_ca(self, jour: str) -> None:
+        """Compute and update live temporary CA from sales for a given day.
+
+        This should be called after each sales transaction to keep the SF table
+        margin percentages updated in real-time.
+
+        Args:
+            jour: Date in ISO format (YYYY-MM-DD).
+        """
+        try:
+            from services.analyse_journaliere_service import AnalyseJournaliereService
+
+            analyse_service = AnalyseJournaliereService(self._db_manager)
+            analyse_service.update_temporary_ca(jour)
+        except Exception as exc:
+            logger.warning("Failed to update live CA for %s: %s", jour, exc)

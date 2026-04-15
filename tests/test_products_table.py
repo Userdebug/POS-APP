@@ -16,7 +16,7 @@ class TestProduitsTableCategories(unittest.TestCase):
         cls.app = QApplication.instance() or QApplication(sys.argv)
 
     def setUp(self):
-        self.table = ProduitsTable()
+        self.table = ProduitsTable(db_manager=None)
 
     def test_default_categories_initialized(self):
         """Test that default categories are initialized."""

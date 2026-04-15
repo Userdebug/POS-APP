@@ -2,7 +2,7 @@
 
 Exports:
     BasketContainer: QStackedWidget parent holding both zones.
-    ZoneVente: Sales mode basket (P1/P2/P3, encaisser).
+    ZoneVente: Sales mode basket (P1/P2/N/P, encaisser).
     ZoneAchat: Purchases mode supplier, facture, payer).
 """
 
