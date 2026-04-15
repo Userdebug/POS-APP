@@ -31,7 +31,7 @@ class ZoneProduits(QWidget):
     def __init__(self):
         super().__init__()
         self.produits = []
-        self.recherche = ""
+        self.search_text = ""
         self._mode = "vente"
 
         # Main layout
@@ -164,104 +164,230 @@ class ZoneProduits(QWidget):
         return all(term in base_search for term in self.search_text.split())
 
     def _filtered_produits(self):
-        return [p for p in self.produits if self._matches_search(p)]
+        filtered = [p for p in self.produits if self._matches_search(p)]
+        return sorted(filtered, key=self._dlv_sort_key)
+
+    def _dlv_sort_key(self, produit: dict) -> tuple:
+        """Sort key for DLV/DLC ordering - nearly expired first, no date last."""
+        dlv_value = str(produit.get("dlv_dlc", ""))
+        parsed = parse_dlv_dlc_date(dlv_value)
+        if parsed is None:
+            return (1, date.max)  # No date = lowest priority
+        return (0, parsed)  # Has date = higher priority, sorted by date
 
     def _refresh_table(self):
-        data = self._filtered_produits()
-        self.table.setRowCount(0)
+        """Refresh table with UI update protection to prevent lag."""
+        self.table.setUpdatesEnabled(False)
+        try:
+            self._refresh_table_incremental()
+        finally:
+            self.table.setUpdatesEnabled(True)
 
-        for produit in data:
-            row = self.table.rowCount()
-            self.table.insertRow(row)
+    def _refresh_table_incremental(self) -> None:
+        """Optimized refresh that only updates changed rows.
 
-            b = int(produit.get("b", 0))
-            r = int(produit.get("r", 0))
-            pa = int(produit.get("pa", produit.get("prix", 0)))
-            qte_min = 2
-            nom = str(produit.get("nom", ""))
-            total_qte = b + r
-            pa_100 = int(pa / 100)
+        Updates existing rows in-place, adds new rows, and removes excess rows.
+        This avoids the performance penalty of full table rebuilds.
+        """
+        filtered = self._filtered_produits()
+        current_rows = self.table.rowCount()
+        new_rows = len(filtered)
 
-            # Vertical header: display verification date as DD/MM
-            verification_str = str(produit.get("derniere_verification", ""))
-            self._set_verification_header(row, verification_str)
+        # Remove excess rows
+        while current_rows > new_rows:
+            self.table.removeRow(current_rows - 1)
+            current_rows -= 1
 
-            # Nom & Infos (col 0)
-            is_promo = bool(produit.get("en_promo", 0))
-            promo_badge = (
-                " <span style='color:#22c55e; font-weight:bold;'>[P]</span>" if is_promo else ""
-            )
-            html_text = (
-                f"<b style='color:{TOKENS['text_primary']};'>{nom}</b><br>"
-                f"<span style='color:#22c55e;'>B: {format_grouped_int(b)}</span> | "
-                f"<span style='color:#f59e0b;'>R: {format_grouped_int(r)}</span> | "
-                f"<span style='color:#a855f7;'>Idx: {format_grouped_int(pa_100)}</span>{promo_badge}"
-            )
+        # Update existing rows or add new ones
+        for row_idx, produit in enumerate(filtered):
+            if row_idx < self.table.rowCount():
+                # Update existing row
+                self._update_table_row(row_idx, produit)
+            else:
+                # Add new row
+                self._insert_table_row(row_idx, produit)
+
+    def _update_table_row(self, row: int, produit: dict) -> None:
+        """Update a single table row without recreating widgets."""
+        b = int(produit.get("b", 0))
+        r = int(produit.get("r", 0))
+        pa = int(produit.get("pa", produit.get("prix", 0)))
+        qte_min = int(produit.get("min_qte", 2))
+        total_qte = b + r
+        pa_100 = int(pa / 100)
+        nom = str(produit.get("nom", ""))
+        is_promo = bool(produit.get("en_promo", 0))
+
+        # Update verification header
+        verification_str = str(produit.get("derniere_verification", ""))
+        self._set_verification_header(row, verification_str)
+
+        # Update col 0 - Nom & Infos (QLabel widget)
+        promo_badge = (
+            " <span style='color:#22c55e; font-weight:bold;'>[P]</span>" if is_promo else ""
+        )
+        html_text = (
+            f"<b style='color:{TOKENS['text_primary']};'>{nom}</b><br>"
+            f"<span style='color:#22c55e;'>B: {format_grouped_int(b)}</span> | "
+            f"<span style='color:#f59e0b;'>R: {format_grouped_int(r)}</span> | "
+            f"<span style='color:#a855f7;'>Idx: {format_grouped_int(pa_100)}</span>{promo_badge}"
+        )
+        existing_widget = self.table.cellWidget(row, 0)
+        if existing_widget and isinstance(existing_widget, QLabel):
+            existing_widget.setText(html_text)
+        else:
             lbl = QLabel(html_text)
             lbl.setContentsMargins(2, 2, 2, 2)
             lbl.setWordWrap(True)
+            self.table.setCellWidget(row, 0, lbl)
+            self.table.setItem(row, 0, QTableWidgetItem(""))
 
-            # Get PV (prix de vente) - use promo price if en_promo
-            pv = int(produit.get("pv", 0))
-            if is_promo:
-                pv = int(produit.get("prix_promo", pv))
-            pv_formatted = format_grouped_int(pv)
-
-            values = [
-                "",  # col 0 remplacée par widget
-                format_grouped_int(total_qte),
-                pv_formatted,
-                self._format_dlv_dlc(str(produit.get("dlv_dlc", ""))),
-            ]
-
-            for col, value in enumerate(values):
-                item = QTableWidgetItem(value)
-                if col == 0:
-                    self.table.setItem(row, col, item)
-                    self.table.setCellWidget(row, col, lbl)
-                else:
-                    item.setTextAlignment(
-                        Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
-                    )
-                    if col == 1 and total_qte < qte_min:
-                        item.setForeground(QColor("#dc2626"))
-                    if col == 3:
-                        self._apply_dlv_color(item, str(produit.get("dlv_dlc", "")))
-                    self.table.setItem(row, col, item)
-
-            # Bouton d’ajout (col 4)
-            ccontainer = QWidget()
-            layout = QHBoxLayout(ccontainer)
-            layout.setContentsMargins(0, 0, 0, 0)
-            layout.setSpacing(0)
-
-            btn_add = QPushButton("+")
-            btn_add.setMinimumHeight(20)
-            btn_add.setCursor(Qt.CursorShape.PointingHandCursor)
-
-            # Logique métier (DLV / Stock)
-            is_vente = self._mode == "vente"
-            if is_vente:
-                dlv_value = str(produit.get("dlv_dlc", ""))
-                has_dlv = parse_dlv_dlc_date(dlv_value) is not None
-                is_expired = self._is_dlv_expired(dlv_value)
-                can_add = total_qte > 0 and (not has_dlv or not is_expired)
+        # Update col 1 - Total Qté
+        item_qte = self.table.item(row, 1)
+        if item_qte:
+            item_qte.setText(format_grouped_int(total_qte))
+            if total_qte < qte_min:
+                item_qte.setForeground(QColor("#dc2626"))
             else:
-                can_add = True
+                item_qte.setForeground(QColor())
 
-            btn_add.setStyleSheet(self._add_button_style(can_add))
-            btn_add.setEnabled(can_add)
+        # Update col 2 - PV
+        pv = int(produit.get("pv", 0))
+        if is_promo:
+            pv = int(produit.get("prix_promo", pv))
+        item_pv = self.table.item(row, 2)
+        if item_pv:
+            item_pv.setText(format_grouped_int(pv))
 
-            if not can_add:
-                msg = "Stock épuisé" if total_qte <= 0 else "DLV/DLC dépassée"
-                btn_add.setToolTip(f"{msg}: ajout désactivé")
-            else:
-                btn_add.setToolTip("Ajouter au panier")
+        # Update col 3 - DLV/DLC
+        dlv_value = str(produit.get("dlv_dlc", ""))
+        item_dlv = self.table.item(row, 3)
+        if item_dlv:
+            item_dlv.setText(self._format_dlv_dlc(dlv_value))
+            self._apply_dlv_color(item_dlv, dlv_value)
 
-            btn_add.clicked.connect(lambda _, p=produit: self._emit_add_to_cart(p))
+        # Update col 4 - Add button
+        self._update_add_button(row, produit)
 
-            layout.addWidget(btn_add)
-            self.table.setCellWidget(row, 4, ccontainer)
+    def _update_add_button(self, row: int, produit: dict) -> None:
+        """Update the add button for a row - always recreate to ensure correct closure."""
+        # Always recreate button to ensure closure captures correct product reference
+        self._recreate_add_button(row, produit)
+
+    def _recreate_add_button(self, row: int, produit: dict) -> None:
+        """Recreate the add button container and button for a row."""
+        b = int(produit.get("b", 0))
+        r = int(produit.get("r", 0))
+        total_qte = b + r
+
+        dlv_value = str(produit.get("dlv_dlc", ""))
+        has_dlv = parse_dlv_dlc_date(dlv_value) is not None
+        is_expired = self._is_dlv_expired(dlv_value)
+
+        is_vente = self._mode == "vente"
+        if is_vente:
+            can_add = total_qte > 0 and (not has_dlv or not is_expired)
+        else:
+            can_add = True
+
+        container = QWidget()
+        layout = QHBoxLayout(container)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(0)
+
+        btn_add = QPushButton("+")
+        btn_add.setMinimumHeight(20)
+        btn_add.setCursor(Qt.CursorShape.PointingHandCursor)
+        btn_add.setStyleSheet(self._add_button_style(can_add))
+        btn_add.setEnabled(can_add)
+
+        if not can_add:
+            msg = "Stock épuisé" if total_qte <= 0 else "DLV/DLC dépassée"
+            btn_add.setToolTip(f"{msg}: ajout désactivé")
+        else:
+            btn_add.setToolTip("Ajouter au panier")
+
+        # Store reference to product dict - closure captures this specific product
+        produit_ref = dict(produit)
+
+        def on_add_clicked():
+            # Re-fetch from filtered list to get latest data (prices, stock, etc.)
+            filtered = self._filtered_produits()
+            prod_id = produit_ref.get("id")
+            for p in filtered:
+                if p.get("id") == prod_id:
+                    self._emit_add_to_cart(p)
+                    break
+
+        btn_add.clicked.connect(on_add_clicked)
+
+        layout.addWidget(btn_add)
+        self.table.setCellWidget(row, 4, container)
+
+    def _insert_table_row(self, row: int, produit: dict) -> None:
+        """Insert a new table row."""
+        self.table.insertRow(row)
+
+        b = int(produit.get("b", 0))
+        r = int(produit.get("r", 0))
+        pa = int(produit.get("pa", produit.get("prix", 0)))
+        qte_min = int(produit.get("min_qte", 2))
+        total_qte = b + r
+        pa_100 = int(pa / 100)
+        nom = str(produit.get("nom", ""))
+        is_promo = bool(produit.get("en_promo", 0))
+
+        # Verification header
+        verification_str = str(produit.get("derniere_verification", ""))
+        self._set_verification_header(row, verification_str)
+
+        # Col 0 - Nom & Infos
+        promo_badge = (
+            " <span style='color:#22c55e; font-weight:bold;'>[P]</span>" if is_promo else ""
+        )
+        html_text = (
+            f"<b style='color:{TOKENS['text_primary']};'>{nom}</b><br>"
+            f"<span style='color:#22c55e;'>B: {format_grouped_int(b)}</span> | "
+            f"<span style='color:#f59e0b;'>R: {format_grouped_int(r)}</span> | "
+            f"<span style='color:#a855f7;'>Idx: {format_grouped_int(pa_100)}</span>{promo_badge}"
+        )
+        lbl = QLabel(html_text)
+        lbl.setContentsMargins(2, 2, 2, 2)
+        lbl.setWordWrap(True)
+        self.table.setItem(row, 0, QTableWidgetItem(""))
+        self.table.setCellWidget(row, 0, lbl)
+
+        # Get PV
+        pv = int(produit.get("pv", 0))
+        if is_promo:
+            pv = int(produit.get("prix_promo", pv))
+
+        dlv_value = str(produit.get("dlv_dlc", ""))
+
+        # Col 1 - Qté
+        item_qte = QTableWidgetItem(format_grouped_int(total_qte))
+        item_qte.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        if total_qte < qte_min:
+            item_qte.setForeground(QColor("#dc2626"))
+        self.table.setItem(row, 1, item_qte)
+
+        # Col 2 - PV
+        item_pv = QTableWidgetItem(format_grouped_int(pv))
+        item_pv.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self.table.setItem(row, 2, item_pv)
+
+        # Col 3 - DLV/DLC
+        item_dlv = QTableWidgetItem(self._format_dlv_dlc(dlv_value))
+        item_dlv.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        self._apply_dlv_color(item_dlv, dlv_value)
+        self.table.setItem(row, 3, item_dlv)
+
+        # Col 4 - Add button
+        self._recreate_add_button(row, produit)
+
+    def _refresh_table_intern(self):
+        """Legacy method - now redirects to incremental refresh."""
+        self._refresh_table_incremental()
 
     # --- Verification date display & click ---
     def _set_verification_header(self, row: int, verification_str: str) -> None:

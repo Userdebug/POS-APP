@@ -578,6 +578,20 @@ class DatabaseManager:
                 ),
             )
 
+    def get_mouvements_par_produit(self, produit_id: int, limit: int = 50) -> list[dict[str, Any]]:
+        with self._connect() as conn:
+            cursor = conn.execute(
+                """
+                SELECT jour, type_mouvement, quantite, raison
+                FROM mouvements_stock
+                WHERE produit_id = ?
+                ORDER BY jour DESC
+                LIMIT ?
+                """,
+                (int(produit_id), int(limit)),
+            )
+            return [dict(row) for row in cursor.fetchall()]
+
     def log_removed_product(
         self,
         *,

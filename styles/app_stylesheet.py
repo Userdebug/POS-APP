@@ -163,6 +163,46 @@ QTableWidget#sf_report_table::item {
 QTableWidget#sf_report_table::item:selected {
     background-color: $bg_button_disabled;
 }
+QScrollBar:vertical {
+    background-color: transparent;
+    width: 10px;
+    border: none;
+    margin: 0px;
+}
+QScrollBar::handle:vertical {
+    background-color: $border_input;
+    min-height: 40px;
+    border-radius: 5px;
+}
+QScrollBar::handle:vertical:hover {
+    background-color: $text_muted;
+}
+QScrollBar::add-line:vertical, QScrollBar::sub-line:vertical {
+    height: 0px;
+}
+QScrollBar::add-page:vertical, QScrollBar::sub-page:vertical {
+    background: none;
+}
+QScrollBar:horizontal {
+    background-color: transparent;
+    height: 10px;
+    border: none;
+    margin: 0px;
+}
+QScrollBar::handle:horizontal {
+    background-color: $border_input;
+    min-width: 40px;
+    border-radius: 5px;
+}
+QScrollBar::handle:horizontal:hover {
+    background-color: $text_muted;
+}
+QScrollBar::add-line:horizontal, QScrollBar::sub-line:horizontal {
+    width: 0px;
+}
+QScrollBar::add-page:horizontal, QScrollBar::sub-page:horizontal {
+    background: none;
+}
 """)
 
 

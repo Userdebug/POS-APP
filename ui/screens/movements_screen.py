@@ -33,6 +33,7 @@ class EcranMouvements(QWidget):
         super().__init__()
         self.produit_info_panel = ProduitInfoPanel()
         self.mouvements_history_panel = MouvementsHistoryPanel()
+        self.mouvements_history_panel.set_db_manager(db_manager)
         self.mouvements_actions_panel = MouvementsActionsPanel()
         self.produits_table = ProduitsTable(db_manager)
 
@@ -84,6 +85,9 @@ class EcranMouvements(QWidget):
         self._produit_actif_id = produit.get("id")
         self.produit_info_panel.update_info(produit)
         self.mouvements_actions_panel.set_actions_enabled(True)
+        self.mouvements_history_panel.load_for_product(
+            int(produit.get("id", 0)), str(produit.get("nom", "-"))
+        )
 
     def _on_produit_modifie(self, produit: dict) -> None:
         target_id = produit.get("id")

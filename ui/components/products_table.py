@@ -69,7 +69,6 @@ class ProduitsTable(QGroupBox):
         self._db_manager = db_manager
         self._produits = []
         self._categorie_active = "Tous"
-        self._recherche = ""
         self._search_text = ""
         self._category_buttons = []
         self._categories_map: dict[str, str] = {}
@@ -211,13 +210,29 @@ class ProduitsTable(QGroupBox):
     def get_produits(self) -> list[dict]:
         return self._produits
 
-    def refresh(self) -> None:
-        """Refresh table with UI update protection."""
+    def refresh(self, full_rebuild: bool = False) -> None:
+        """Refresh table with UI update protection.
+
+        Args:
+            full_rebuild: If True, force complete table rebuild.
+                         Use sparingly - only when product list changes.
+        """
         self.table.setUpdatesEnabled(False)
         try:
-            self._refresh_table_incremental()
+            if full_rebuild:
+                self._refresh_table_full()
+            else:
+                self._refresh_table_incremental()
         finally:
             self.table.setUpdatesEnabled(True)
+
+    def _refresh_table_full(self) -> None:
+        """Full table rebuild - only call when product list changes."""
+        self.table.setRowCount(0)
+        filtered = self._filtered_produits()
+        self.table.setRowCount(len(filtered))
+        for row_idx, produit in enumerate(filtered):
+            self._populate_table_row(row_idx, produit)
 
     def update_produit(self, produit: dict) -> None:
         """Update a single product row in the table without full refresh."""
@@ -280,25 +295,63 @@ class ProduitsTable(QGroupBox):
             else:
                 item.setText(value)
 
-        # Update button - use product ID lookup instead of closure to avoid stale references
+        self._update_row_button(row, produit.get("id"))
+
+    def _populate_table_row(self, row: int, produit: dict) -> None:
+        """Populate a table row (for full rebuild)."""
+        b = int(produit.get("b", 0))
+        r = int(produit.get("r", 0))
+        pa = int(produit.get("pa", produit.get("prc", 0)))
+        prc = int(produit.get("prc", round(pa * 1.2)))
+        values = [
+            str(produit.get("id", "")),
+            str(produit.get("nom", "")),
+            str(produit.get("categorie", "Sans categorie")),
+            format_grouped_int(pa),
+            format_grouped_int(prc),
+            format_grouped_int(produit.get("pv", 0)),
+            format_grouped_int(b),
+            format_grouped_int(r),
+            format_grouped_int(b + r),
+            format_dlv_dlc_date(str(produit.get("dlv_dlc", ""))),
+        ]
+        for col, value in enumerate(values):
+            item = QTableWidgetItem(value)
+            if col in (0, 1, 3, 4, 5, 6, 7, 8, 9):
+                item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+            self.table.setItem(row, col, item)
+        self._create_row_button(row, produit.get("id"))
+
+    def _update_row_button(self, row: int, produit_id) -> None:
+        """Update button in a row without recreation."""
         old_btn = self.table.cellWidget(row, 10)
         if old_btn is not None:
             old_btn.deleteLater()
+        self._create_row_button(row, produit_id)
+
+    def _create_row_button(self, row: int, produit_id) -> None:
+        """Create a selection button for a row."""
         btn_select = QPushButton("Choisir")
         btn_select.setCursor(Qt.CursorShape.PointingHandCursor)
-        # Store product ID in button and look up product from table data
-        produit_id = produit.get("id")
         btn_select.setProperty("produit_id", produit_id)
-        btn_select.clicked.connect(lambda: self._on_row_button_clicked(row))
+        btn_select.clicked.connect(lambda r=row: self._on_row_button_clicked(r))
         self.table.setCellWidget(row, 10, btn_select)
 
     def _on_row_button_clicked(self, row: int) -> None:
         """Handle button click by looking up product from the filtered list."""
-        # Get the filtered products for this row
-        filtered = self._filtered_produits()
-        if 0 <= row < len(filtered):
-            produit = filtered[row]
-            self.produit_selectionne.emit(dict(produit))
+        # Use product ID lookup instead of row index to handle search filtering
+        btn = self.sender()
+        if btn is None:
+            return
+        produit_id = btn.property("produit_id")
+        if produit_id is None:
+            return
+
+        # Find product by ID in the original products list
+        for produit in self._produits:
+            if str(produit.get("id")) == str(produit_id):
+                self.produit_selectionne.emit(dict(produit))
+                return
 
     def _insert_table_row(self, row: int, produit: dict) -> None:
         """Insert a new table row with cached button."""
@@ -326,28 +379,19 @@ class ProduitsTable(QGroupBox):
                 item.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
             self.table.setItem(row, col, item)
 
-        # Create button using row lookup to avoid closure issues
+        # Create button using product ID lookup to avoid closure issues
         btn_select = QPushButton("Choisir")
         btn_select.setCursor(Qt.CursorShape.PointingHandCursor)
-        btn_select.clicked.connect(lambda: self._on_row_button_clicked(row))
+        btn_select.setProperty("produit_id", produit.get("id"))
+        btn_select.clicked.connect(lambda r=row: self._on_row_button_clicked(r))
         self.table.setCellWidget(row, 10, btn_select)
 
-    def _get_cached_button(self) -> QPushButton:
-        """Get or create a cached button widget."""
-        if not hasattr(self, "_button_cache"):
-            self._button_cache = []
-        if self._button_cache:
-            return self._button_cache.pop()
-        btn = QPushButton("Choisir")
-        btn.setCursor(Qt.CursorShape.PointingHandCursor)
-        return btn
-
-    def _recycle_button(self, btn: QPushButton) -> None:
-        """Recycle a button back to the cache."""
-        if not hasattr(self, "_button_cache"):
-            self._button_cache = []
-        btn.clicked.disconnect()
-        self._button_cache.append(btn)
+    def _set_category(self, categorie: str) -> None:
+        self._categorie_active = categorie
+        for btn in self._category_buttons:
+            btn.setChecked(btn.text() == categorie)
+        if categorie != "Tous" or self._search_text != "":
+            self.refresh()
 
     def _build_category_buttons(self) -> None:
         if not self._button_grid:
@@ -367,16 +411,12 @@ class ProduitsTable(QGroupBox):
             self._button_grid.add_button(btn)
             self._category_buttons.append(btn)
 
-    def _set_category(self, categorie: str) -> None:
-        self._categorie_active = categorie
-        for btn in self._category_buttons:
-            btn.setChecked(btn.text() == categorie)
-        self.refresh()
-
     def _on_search_changed(self, text: str) -> None:
         """Handle debounced search text from SearchBar."""
         if text != self._search_text:
             self._search_text = text
+            if text == "" and self._categorie_active == "Tous":
+                return
             self.refresh()
 
     def _matches_search(self, produit: dict) -> bool:
@@ -417,12 +457,6 @@ class ProduitsTable(QGroupBox):
             except ValueError:
                 return (1, "")
         return (1, "")
-
-    def _select_produit(self, produit) -> None:
-        # Guard: ensure produit is a valid dict before emitting
-        if not isinstance(produit, dict):
-            return
-        self.produit_selectionne.emit(dict(produit))
 
     def _default_produits(self) -> list[dict]:
         return []

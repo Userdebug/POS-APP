@@ -1,9 +1,7 @@
 """Infos produit (haut gauche)."""
 
-from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtCore import QDate
+from PyQt6.QtCore import QDate, Qt, QTimer, pyqtSignal
 from PyQt6.QtWidgets import (
-    QCalendarWidget,
     QDateEdit,
     QFormLayout,
     QGridLayout,
@@ -17,7 +15,6 @@ from PyQt6.QtWidgets import (
 )
 
 from core.formatters import (
-    format_dlv_dlc_date,
     format_grouped_int,
     parse_expiry_dates,
     parse_grouped_int,
@@ -85,7 +82,7 @@ class ProduitInfoPanel(QGroupBox):
         self.input_pa = QLineEdit()
         self.input_pv = QLineEdit()
         self.input_prix_promo = QLineEdit()
-        self.input_qte_min = QLineEdit()
+        self.input_min_qte = QLineEdit()
 
         for widget in (
             self.input_nom,
@@ -94,7 +91,7 @@ class ProduitInfoPanel(QGroupBox):
             self.input_pa,
             self.input_pv,
             self.input_prix_promo,
-            self.input_qte_min,
+            self.input_min_qte,
         ):
             widget.setReadOnly(True)
 
@@ -112,25 +109,22 @@ class ProduitInfoPanel(QGroupBox):
         edit_grid.setVerticalSpacing(8)
         edit_grid.addWidget(QLabel("Nom :"), 0, 0)
         edit_grid.addWidget(self.input_nom, 0, 1, 1, 3)
-        # Categorie and Min on row 1 (columns 0-3)
         edit_grid.addWidget(QLabel("Categorie :"), 1, 0)
         edit_grid.addWidget(self.input_categorie, 1, 1)
         self.input_categorie.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        edit_grid.addWidget(QLabel("Min :"), 1, 2)
-        edit_grid.addWidget(self.input_qte_min, 1, 3)
-        self.input_qte_min.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
-        # DLV, PA, PV on row 2 (all within columns 0-3)
+        edit_grid.addWidget(QLabel("Min (alerte) :"), 1, 2)
+        edit_grid.addWidget(self.input_min_qte, 1, 3)
+        self.input_min_qte.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         edit_grid.addWidget(QLabel("DLV/DLC :"), 2, 0)
         edit_grid.addWidget(self.input_dlv, 2, 1)
-        edit_grid.setColumnStretch(1, 1)  # DLV takes remaining space in its column pair
+        edit_grid.setColumnStretch(1, 1)
         edit_grid.addWidget(QLabel("PA :"), 2, 2)
         edit_grid.addWidget(self.input_pa, 2, 3)
         edit_grid.addWidget(QLabel("PV :"), 3, 0)
         edit_grid.addWidget(self.input_pv, 3, 1)
-        edit_grid.setColumnStretch(1, 1)  # PV takes remaining space
+        edit_grid.setColumnStretch(1, 1)
         edit_grid.addWidget(QLabel("Prix Promo :"), 3, 2)
         edit_grid.addWidget(self.input_prix_promo, 3, 3)
-        edit_grid.addWidget(self.btn_en_promo, 4, 0, 1, 4)
 
         box_info = QGroupBox("Infos")
         form_info = QFormLayout(box_info)
@@ -140,6 +134,7 @@ class ProduitInfoPanel(QGroupBox):
         form_info.addRow("Stock Total :", self.lbl_stock)
         form_info.addRow("Stock Boutique :", self.lbl_b)
         form_info.addRow("Stock Reserve :", self.lbl_r)
+        form_info.addRow("Promo :", self.btn_en_promo)
 
         cols.addWidget(box_edit, 2)
         cols.addWidget(box_info, 1)
@@ -179,7 +174,7 @@ class ProduitInfoPanel(QGroupBox):
         self.input_pa.setText(format_grouped_int(pa))
         self.input_pv.setText(format_grouped_int(int(produit.get("pv", 0))))
         self.input_prix_promo.setText(format_grouped_int(int(produit.get("prix_promo", pa))))
-        self.input_qte_min.setText(str(max(0, int(produit.get("qte_min", 2)))))
+        self.input_min_qte.setText(str(max(0, int(produit.get("min_qte", 2)))))
         self._en_promo = bool(produit.get("en_promo", 0))
         self._update_promo_button()
 
@@ -191,7 +186,7 @@ class ProduitInfoPanel(QGroupBox):
             self.input_pa,
             self.input_pv,
             self.input_prix_promo,
-            self.input_qte_min,
+            self.input_min_qte,
         ):
             widget.setReadOnly(not editable)
 
@@ -212,7 +207,7 @@ class ProduitInfoPanel(QGroupBox):
         pa = max(0, parse_grouped_int(self.input_pa.text().strip(), default=0))
         pv = max(0, parse_grouped_int(self.input_pv.text().strip(), default=0))
         prix_promo = max(0, parse_grouped_int(self.input_prix_promo.text().strip(), default=pa))
-        qte_min = max(0, parse_grouped_int(self.input_qte_min.text().strip(), default=2))
+        min_qte = max(0, parse_grouped_int(self.input_min_qte.text().strip(), default=2))
         updated = dict(self._produit_actuel)
         updated["nom"] = self.input_nom.text().strip() or str(self._produit_actuel.get("nom", ""))
         updated["categorie"] = self.input_categorie.text().strip() or str(
@@ -225,14 +220,15 @@ class ProduitInfoPanel(QGroupBox):
         updated["pv"] = pv
         updated["prix_promo"] = prix_promo
         updated["en_promo"] = 1 if self._en_promo else 0
-        updated["qte_min"] = qte_min
+        updated["min_qte"] = min_qte
         self._produit_actuel = updated
         self._editing = False
         self.btn_edit.setEnabled(True)
         self.btn_save.setEnabled(False)
         self._set_editable(False)
         self._fill_fields(updated)
-        self.produit_modifie.emit(dict(updated))
+        # Defer signal to allow UI to repaint before handlers run
+        QTimer.singleShot(0, lambda p=dict(updated): self.produit_modifie.emit(p))
 
     def _toggle_promo(self) -> None:
         """Toggle the en_promo flag, update appearance, and save to database."""
@@ -243,7 +239,8 @@ class ProduitInfoPanel(QGroupBox):
             updated = dict(self._produit_actuel)
             updated["en_promo"] = 1 if self._en_promo else 0
             self._produit_actuel = updated
-            self.produit_modifie.emit(dict(updated))
+            # Defer signal to allow UI to repaint before handlers run
+            QTimer.singleShot(0, lambda p=dict(updated): self.produit_modifie.emit(p))
 
     def _update_promo_button(self) -> None:
         """Update the En promo toggle button style and text."""

@@ -17,6 +17,7 @@ from PyQt6.QtWidgets import (
 )
 
 from core.database import DatabaseManager
+from core.settings import SettingsService
 from presenters.reports_presenter import ReportsPresenter, SFTableData
 
 
@@ -27,10 +28,13 @@ class SFTableWidget(QWidget):
     Row 1 (data): Margin percentages with color coding
     """
 
+    DATE_DEBUT_KEY = "sf_date_debut"
+
     def __init__(
         self,
         db_manager: DatabaseManager,
         reports_presenter: ReportsPresenter,
+        settings_service: SettingsService | None = None,
         parent: QWidget | None = None,
     ):
         """Initialize SF margin table widget.
@@ -38,14 +42,16 @@ class SFTableWidget(QWidget):
         Args:
             db_manager: Database manager for data access.
             reports_presenter: Reports presenter for business logic.
+            settings_service: Settings service for persisting date selection.
             parent: Parent widget.
         """
         super().__init__(parent)
         self.db_manager = db_manager
         self.reports_presenter = reports_presenter
+        self.settings_service = settings_service or db_manager.settings
 
-        # Default date: 1 month ago
-        self._date_debut = QDate.currentDate().addMonths(-1)
+        # Load saved date or default to 1 month ago
+        self._date_debut = self._load_saved_date()
         self._date_fin = QDate.currentDate()
 
         # Set compact size
@@ -118,7 +124,34 @@ class SFTableWidget(QWidget):
     def _on_date_changed(self, date: QDate) -> None:
         """Handle date change and refresh table."""
         self._date_debut = date
+        self._save_date(date)
         self._refresh_table()
+
+    def _load_saved_date(self) -> QDate:
+        """Load saved date from settings or return default (1 month ago).
+
+        Returns:
+            QDate: Saved date or default.
+        """
+        saved = self.settings_service.get_item_value(self.DATE_DEBUT_KEY, None, "string")
+        if saved:
+            date = QDate.fromString(saved, "yyyy-MM-dd")
+            if date.isValid():
+                return date
+        # Default: 1 month ago
+        return QDate.currentDate().addMonths(-1)
+
+    def _save_date(self, date: QDate) -> None:
+        """Save selected date to settings.
+
+        Args:
+            date: QDate to save.
+        """
+        self.settings_service.set_item(
+            key=self.DATE_DEBUT_KEY,
+            value=date.toString("yyyy-MM-dd"),
+            value_type="string",
+        )
 
     # ---------------- Data ---------------- #
 

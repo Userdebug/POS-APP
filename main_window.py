@@ -228,6 +228,7 @@ class MainWindow(QMainWindow):
         self.sf_margin_widget = SFTableWidget(
             db_manager=self.controller.db_manager,
             reports_presenter=self.controller.reports_presenter,
+            settings_service=self.controller.db_manager.settings,
         )
         return self.sf_margin_widget
 

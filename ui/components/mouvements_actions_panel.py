@@ -1,7 +1,13 @@
 """Actions de mouvements de stock."""
 
 from PyQt6.QtCore import Qt, pyqtSignal
-from PyQt6.QtWidgets import QFrame, QGroupBox, QHBoxLayout, QLabel, QPushButton
+from PyQt6.QtWidgets import (
+    QFrame,
+    QGroupBox,
+    QHBoxLayout,
+    QLabel,
+    QPushButton,
+)
 
 from ui.components.quantity_editor import QuantityEditor
 
@@ -39,14 +45,13 @@ class MouvementsActionsPanel(QGroupBox):
         qty_tag.setStyleSheet("color:#94a3b8; font-size:11px; font-weight:700; padding:0 2px;")
         root.addWidget(qty_tag)
 
-        # Use QuantityEditor for quantity input (allows negative values for stock movements)
         self._qty_editor = QuantityEditor(
             quantity=1,
-            min_quantity=None,  # Allow negative values for stock reductions
+            min_quantity=None,
             on_minus=None,
             on_plus=None,
             parent=None,
-            min_val=-999,  # Allow negative quantities
+            min_val=-999,
             max_val=999,
         )
         self._qty_editor.setFixedWidth(100)
@@ -54,16 +59,25 @@ class MouvementsActionsPanel(QGroupBox):
         root.addWidget(self._qty_editor)
 
         self._add_separator(root)
+
         self._add_group(
-            root, "Mouvements", [("Res->Btq", "#3b82f6", "RB"), ("Btq->Res", "#f59e0b", "BR")]
+            root,
+            "Mouvements",
+            [("Res->Btq", "#3b82f6", "RB"), ("Btq->Res", "#f59e0b", "BR")],
         )
         self._add_separator(root)
+
         self._add_group(
-            root, "Corrections", [("Corr Btq", "#10b981", "EB"), ("Corr Res", "#22c55e", "ER")]
+            root,
+            "Corrections",
+            [("Corr Btq", "#10b981", "EB"), ("Corr Res", "#22c55e", "ER")],
         )
         self._add_separator(root)
+
         self._add_group(
-            root, "Enlever", [("DLV", "#ef4444", "ENV_DLV"), ("Abime", "#dc2626", "ENV_ABIME")]
+            root,
+            "Enlever",
+            [("DLV", "#ef4444", "ENV_DLV"), ("Abime", "#dc2626", "ENV_ABIME")],
         )
         root.addStretch(1)
 
