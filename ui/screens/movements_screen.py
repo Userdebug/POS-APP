@@ -118,6 +118,7 @@ class EcranMouvements(QWidget):
 
         raison = None
         action_db = action
+        location = None
 
         if action in ("ENV_DLV", "ENV_ABIME"):
             env_type = "DLV" if action == "ENV_DLV" else "Abime"
@@ -142,13 +143,12 @@ class EcranMouvements(QWidget):
 
             raison = "perime" if action == "ENV_DLV" else "abime"
 
+        if not self._valider_mouvement(produit, action_db, qte, location):
+            return
+
         avant_b = int(produit.get("b", 0))
         avant_r = int(produit.get("r", 0))
         quantite_effective = apply_movement(produit, action_db, qte)
-
-        # Detect if movement was rejected or partial due to insufficient stock
-        if quantite_effective < qte:
-            self._afficher_erreur_mouvement(produit, action, qte, quantite_effective)
 
         apres_b = int(produit.get("b", 0))
         apres_r = int(produit.get("r", 0))
@@ -191,6 +191,108 @@ class EcranMouvements(QWidget):
         if self.db_manager is None:
             return
         self.db_manager.upsert_products([produit])
+
+    def _valider_mouvement(
+        self, produit: dict, action: str, qte: int, location: str | None
+    ) -> bool:
+        """Validate stock availability before movement. Returns False and shows error if blocked."""
+        nom = produit.get("nom", "-")
+        stock_b = int(produit.get("b", 0))
+        stock_r = int(produit.get("r", 0))
+        action_label = MOUVEMENT_LABELS.get(action, action)
+
+        if action == "RB":
+            if stock_r < qte:
+                QMessageBox.critical(
+                    self,
+                    "Stock Insuffisant",
+                    f"Mouvement bloque pour '{nom}'!\n\n"
+                    f"Action: {action_label}\n"
+                    f"Demandee: {qte}\n"
+                    f"Stock reserve disponible: {stock_r}\n"
+                    f"Stock boutique actuel: {stock_b}\n\n"
+                    f"Transfert impossible: quantite insuffisante en reserve.",
+                )
+                return False
+        elif action == "BR":
+            if stock_b < qte:
+                QMessageBox.critical(
+                    self,
+                    "Stock Insuffisant",
+                    f"Mouvement bloque pour '{nom}'!\n\n"
+                    f"Action: {action_label}\n"
+                    f"Demandee: {qte}\n"
+                    f"Stock boutique disponible: {stock_b}\n"
+                    f"Stock reserve actuel: {stock_r}\n\n"
+                    f"Transfert impossible: quantite insuffisante en boutique.",
+                )
+                return False
+        elif action == "EB":
+            if stock_b < qte:
+                QMessageBox.critical(
+                    self,
+                    "Stock Insuffisant",
+                    f"Correction bloquee pour '{nom}'!\n\n"
+                    f"Action: {action_label}\n"
+                    f"Quantite a retirer: {qte}\n"
+                    f"Stock boutique actuel: {stock_b}\n\n"
+                    f"Correction impossible: stock boutique insuffisant.",
+                )
+                return False
+        elif action == "ER":
+            if stock_r < qte:
+                QMessageBox.critical(
+                    self,
+                    "Stock Insuffisant",
+                    f"Correction bloquee pour '{nom}'!\n\n"
+                    f"Action: {action_label}\n"
+                    f"Quantite a retirer: {qte}\n"
+                    f"Stock reserve actuel: {stock_r}\n\n"
+                    f"Correction impossible: stock reserve insuffisant.",
+                )
+                return False
+        elif action in ("ENV", "ENV_B", "ENV_R"):
+            stock_source = stock_b if action in ("ENV_B", "ENV") else stock_r
+            source_name = "boutique" if action in ("ENV_B", "ENV") else "reserve"
+            total_available = stock_b + stock_r
+
+            if action == "ENV_B" and stock_b < qte:
+                QMessageBox.critical(
+                    self,
+                    "Stock Insuffisant",
+                    f"Retrait bloque pour '{nom}'!\n\n"
+                    f"Action: Retirer de la boutique\n"
+                    f"Quantite demandee: {qte}\n"
+                    f"Stock boutique disponible: {stock_b}\n\n"
+                    f"Retrait impossible: quantite insuffisante en boutique.",
+                )
+                return False
+            elif action == "ENV_R" and stock_r < qte:
+                QMessageBox.critical(
+                    self,
+                    "Stock Insuffisant",
+                    f"Retrait bloque pour '{nom}'!\n\n"
+                    f"Action: Retirer de la reserve\n"
+                    f"Quantite demandee: {qte}\n"
+                    f"Stock reserve disponible: {stock_r}\n\n"
+                    f"Retrait impossible: quantite insuffisante en reserve.",
+                )
+                return False
+            elif action == "ENV":
+                if total_available < qte:
+                    QMessageBox.critical(
+                        self,
+                        "Stock Insuffisant",
+                        f"Retrait bloque pour '{nom}'!\n\n"
+                        f"Action: Retirer de plusieurs emplacements\n"
+                        f"Quantite demandee: {qte}\n"
+                        f"Stock boutique disponible: {stock_b}\n"
+                        f"Stock reserve disponible: {stock_r}\n"
+                        f"Total disponible: {total_available}\n\n"
+                        f"Retrait impossible: stock total insuffisant.",
+                    )
+                    return False
+        return True
 
     def _afficher_erreur_mouvement(
         self,

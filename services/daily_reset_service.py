@@ -96,7 +96,7 @@ class DailyResetService:
                 row = conn.execute(
                     """
                     SELECT COUNT(1) as n
-                    FROM suivi_formulaire_journalier
+                    FROM Tcollecte
                     WHERE jour = ? AND cloturee = 1
                     """,
                     (prev_date,),

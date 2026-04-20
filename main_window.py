@@ -246,6 +246,11 @@ class MainWindow(QMainWindow):
                 to_remove=data.get("to_remove_products", []),
             )
 
+    def _on_sf_data_updated(self, jour: str) -> None:
+        """Handle SF data update from controller - refresh SF table widget."""
+        if hasattr(self, "sf_margin_widget"):
+            self.sf_margin_widget._refresh_table()
+
     def _connect_controller_signals(self) -> None:
         """Connect controller signals to passive update methods."""
         # Connect controller signals to view update methods
@@ -255,6 +260,8 @@ class MainWindow(QMainWindow):
         self.controller.billetage_total_updated.connect(self.update_billetage_total)
         self.controller.data_loaded.connect(self._on_data_loaded)
         self.controller.header_data_updated.connect(self._on_header_data_updated)
+        # Connect SF data update signal to refresh SF table
+        self.controller.sf_data_updated.connect(self._on_sf_data_updated)
 
         # Defer initial header data refresh to allow DefillingWidget to fully initialize
         # This fixes the race condition where the signal fires before widgets are ready

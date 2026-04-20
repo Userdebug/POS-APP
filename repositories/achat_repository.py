@@ -147,7 +147,7 @@ class AchatRepository:
                 row = conn.execute(
                     """
                     SELECT id
-                    FROM achats
+                    Tachats
                     WHERE jour = ? AND fournisseur_id = ? AND COALESCE(numero_facture,'') = COALESCE(?, '')
                     """,
                     (target_day, fid, invoice_number),
@@ -166,7 +166,7 @@ class AchatRepository:
 
                 conn.execute(
                     """
-                    INSERT INTO achats_lignes (
+                    INSERT INTO Tachats_lignes (
                         achat_id, produit_id, quantite, pa_unitaire, prc_unitaire, pv_unitaire, total_ttc
                     )
                     VALUES (?, ?, ?, ?, ?, ?, ?)
@@ -178,7 +178,7 @@ class AchatRepository:
                     UPDATE achats
                     SET total_ttc = (
                         SELECT COALESCE(SUM(total_ttc), 0)
-                        FROM achats_lignes
+                        TTachats_lignes
                         WHERE achat_id = achats.id
                     ),
                     updated_at = datetime('now')
@@ -198,8 +198,8 @@ class AchatRepository:
                 SELECT
                     c.nom AS categorie,
                     COALESCE(SUM(al.total_ttc), 0) AS achats_ttc
-                FROM achats a
-                INNER JOIN achats_lignes al ON al.achat_id = a.id
+                FROM Tachats a
+                INNER JOIN Tachats_lignes al ON al.achat_id = a.id
                 INNER JOIN produits p ON p.id = al.produit_id
                 INNER JOIN categories c ON c.id = p.categorie_id
                 WHERE a.jour = ?
@@ -221,7 +221,7 @@ class AchatRepository:
                     a.numero_facture,
                     f.nom as fournisseur,
                     a.total_ttc
-                FROM achats a
+                FROM Tachats a
                 LEFT JOIN fournisseurs f ON a.fournisseur_id = f.id
                 WHERE a.jour = ?
                 ORDER BY a.id DESC
@@ -235,9 +235,9 @@ class AchatRepository:
         with self._connect() as conn:
             row = conn.execute(
                 """
-                SELECT COALESCE(SUM(total_ttc), 0) as total
-                FROM achats
-                WHERE jour = ?
+SELECT COALESCE(SUM(total_ttc), 0) as total
+            FROM Tachats
+            WHERE jour = ?
                 """,
                 (str(day),),
             ).fetchone()

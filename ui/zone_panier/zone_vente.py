@@ -341,12 +341,9 @@ class ZoneVente(BaseBasketZone):
         self.dialog_closed.emit()
 
         day = self._target_business_day()
-        PanierTransactionsService.apply_tracking_collection(
-            day,
-            validated_items,
-            db_manager=self.db_manager,
-            tracking_service=self.tracking_service,
-        )
+
+        # Ne pas utiliser apply_tracking_collection qui remplit le champ 'ca' (final). Le CA final est saisi manuellement à la clôture.
+        # Le CA temps réel est géré via ca_temporaire par update_live_ca (appelé par le controller après enregistrement des ventes).
 
         if self.db_manager:
             for item in validated_items:
@@ -354,7 +351,26 @@ class ZoneVente(BaseBasketZone):
                 quantite = item.get("qte", 1)
                 if produit_id and quantite:
                     try:
+                        # Récupérer les stocks avant décrement
+                        stock_b_avant, stock_r_avant = self.db_manager.products.get_stock(
+                            produit_id
+                        )
+                        # Décrémenter le stock boutique
                         self.db_manager.decrement_stock(produit_id, quantite)
+                        # Calcul stocks après
+                        stock_b_apres = stock_b_avant - quantite
+                        stock_r_apres = stock_r_avant  # réserve inchangée lors d'une vente
+                        # Enregistrer le mouvement de stock (type 'RB' = Retrait Boutique)
+                        self.db_manager.record_stock_movement(
+                            produit_id=produit_id,
+                            type_mouvement="RB",
+                            quantite=-quantite,
+                            stock_boutique_avant=stock_b_avant,
+                            stock_boutique_apres=stock_b_apres,
+                            stock_reserve_avant=stock_r_avant,
+                            stock_reserve_apres=stock_r_apres,
+                            motif="Vente caisse",
+                        )
                     except Exception as e:
                         logger.error("Failed to decrement stock for %s: %s", produit_id, e)
                         QMessageBox.warning(
@@ -375,6 +391,13 @@ class ZoneVente(BaseBasketZone):
         self.drafts.clear_draft("vente")
         self.refresh()
         self._emit_transaction_signal("vente", int(summary.total))
+
+        # Synchroniser Tcollecte après l'enregistrement des ventes (le signal _on_sales_day_recorded a déjà été traité)
+        if self.db_manager:
+            try:
+                self.db_manager.get_daily_tracking_by_category(day)
+            except Exception as e:
+                logger.error("Failed to sync Tcollecte after sale: %s", e)
 
     # ==================== Validation ====================
 

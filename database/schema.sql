@@ -174,13 +174,14 @@ CREATE TABLE IF NOT EXISTS clotures_caisse_categories (
     UNIQUE(jour, categorie)
 );
 
-CREATE TABLE IF NOT EXISTS analyse_journaliere_categories (
+CREATE TABLE IF NOT EXISTS Tcollecte (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     jour TEXT NOT NULL,
     categorie_id INTEGER NOT NULL,
     si INTEGER NOT NULL DEFAULT 0,
     achats INTEGER NOT NULL DEFAULT 0,
     ca INTEGER NOT NULL DEFAULT 0,
+    ca_temporaire INTEGER NOT NULL DEFAULT 0,
     sf INTEGER NOT NULL DEFAULT 0,
     env INTEGER NOT NULL DEFAULT 0,
     vente_theorique INTEGER NOT NULL DEFAULT 0,
@@ -192,7 +193,7 @@ CREATE TABLE IF NOT EXISTS analyse_journaliere_categories (
     FOREIGN KEY (categorie_id) REFERENCES categories(id)
 );
 
-CREATE TABLE IF NOT EXISTS achats (
+CREATE TABLE IF NOT EXISTS Tachats (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     jour TEXT NOT NULL DEFAULT (date('now')),
     fournisseur_id INTEGER NOT NULL,
@@ -204,7 +205,7 @@ CREATE TABLE IF NOT EXISTS achats (
     FOREIGN KEY (fournisseur_id) REFERENCES fournisseurs(id)
 );
 
-CREATE TABLE IF NOT EXISTS achats_lignes (
+CREATE TABLE IF NOT EXISTS Tachats_lignes (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     achat_id INTEGER NOT NULL,
     produit_id INTEGER NOT NULL,
@@ -214,7 +215,7 @@ CREATE TABLE IF NOT EXISTS achats_lignes (
     pv_unitaire INTEGER NOT NULL CHECK (pv_unitaire >= 0),
     total_ttc INTEGER NOT NULL DEFAULT 0,
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (achat_id) REFERENCES achats(id),
+    FOREIGN KEY (achat_id) REFERENCES Tachats(id),
     FOREIGN KEY (produit_id) REFERENCES produits(id)
 );
 
@@ -271,11 +272,11 @@ CREATE INDEX IF NOT EXISTS idx_clotures_caisse_categories_jour ON clotures_caiss
 CREATE INDEX IF NOT EXISTS idx_fournisseurs_nom ON fournisseurs(nom);
 CREATE INDEX IF NOT EXISTS idx_suivi_journalier_categories_jour ON suivi_journalier_categories(jour);
 CREATE INDEX IF NOT EXISTS idx_suivi_formulaire_journalier_jour ON suivi_formulaire_journalier(jour);
-CREATE INDEX IF NOT EXISTS idx_analyse_journaliere_categories_jour ON analyse_journaliere_categories(jour);
-CREATE INDEX IF NOT EXISTS idx_analyse_journaliere_categories_cat ON analyse_journaliere_categories(categorie_id);
-CREATE INDEX IF NOT EXISTS idx_achats_jour ON achats(jour);
-CREATE INDEX IF NOT EXISTS idx_achats_jour_fournisseur_facture ON achats(jour, fournisseur_id, numero_facture);
-CREATE INDEX IF NOT EXISTS idx_achats_lignes_achat ON achats_lignes(achat_id);
+CREATE INDEX IF NOT EXISTS idx_tcollecte_jour ON Tcollecte(jour);
+CREATE INDEX IF NOT EXISTS idx_tcollecte_cat ON Tcollecte(categorie_id);
+CREATE INDEX IF NOT EXISTS idx_tachats_jour ON Tachats(jour);
+CREATE INDEX IF NOT EXISTS idx_tachats_jour_fournisseur_facture ON Tachats(jour, fournisseur_id, numero_facture);
+CREATE INDEX IF NOT EXISTS idx_tachats_lignes_achat ON Tachats_lignes(achat_id);
 CREATE INDEX IF NOT EXISTS idx_audit_admin_actions_jour ON audit_admin_actions(jour);
 CREATE INDEX IF NOT EXISTS idx_ventes_jour_heure ON ventes(jour, heure);
 CREATE INDEX IF NOT EXISTS idx_depenses_date_id ON depenses(date_depense, id);

@@ -73,8 +73,8 @@ class DailyExpenseRow:
 
 
 @dataclass(frozen=True)
-class DailyReceptionRow:
-    """Single row in daily receptions (invoices) report."""
+class DailyAchatRow:
+    """Single row in daily achats (invoices/factures) report."""
 
     numero_facture: str
     fournisseur: str
@@ -83,7 +83,7 @@ class DailyReceptionRow:
 
 @dataclass(frozen=True)
 class JournalierCompletData:
-    """Complete daily report data containing sales, expenses, and receptions."""
+    """Complete daily report data containing sales, expenses, and achats."""
 
     jour: str
     sales: list[DailySalesRow]
@@ -91,8 +91,8 @@ class JournalierCompletData:
     total_ventes: int
     expenses: list[DailyExpenseRow]
     total_depenses: int
-    receptions: list[DailyReceptionRow]
-    total_receptions: int
+    achats: list[DailyAchatRow]
+    total_achats: int
 
 
 @dataclass(frozen=True)
@@ -285,7 +285,7 @@ class ReportsPresenter:
             logger.warning("Failed to get expenses data for %s: %s", jour, exc)
 
         # 3. Achats (invoices) data
-        achats: list[DailyReceptionRow] = []
+        achats: list[DailyAchatRow] = []
         total_achats = 0
 
         try:
@@ -294,7 +294,7 @@ class ReportsPresenter:
                 total_ttc = int(row.get("total_ttc", 0) or 0)
                 total_achats += total_ttc
                 achats.append(
-                    DailyReceptionRow(
+                    DailyAchatRow(
                         numero_facture=str(row.get("numero_facture", "-")),
                         fournisseur=str(row.get("fournisseur", "-")),
                         total_ttc=total_ttc,
@@ -310,8 +310,8 @@ class ReportsPresenter:
             total_ventes=total_ventes,
             expenses=expenses,
             total_depenses=total_depenses,
-            receptions=achats,
-            total_receptions=total_achats,
+            achats=achats,
+            total_achats=total_achats,
         )
 
     def get_sf_table_data(self, date_debut: str, date_fin: str) -> SFTableData:

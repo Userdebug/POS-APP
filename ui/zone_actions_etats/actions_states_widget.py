@@ -170,8 +170,8 @@ class ZoneActionsEtats(QWidget):
                         "ca_final": int(row.get("ca_ttc_final", 0) or 0),
                     }
                 )
-            self.db_manager.save_daily_suivi_form_edits(target_day, edits)
-            self.db_manager.close_day_from_suivi_form(target_day)
+            self.db_manager.save_daily_tracking_form_edits(target_day, edits)
+            self.db_manager.close_day_from_tracking_form(target_day)
 
         # Run autosave after successful closure
         self._run_autosave(target_day)
@@ -243,8 +243,8 @@ class ZoneActionsEtats(QWidget):
                     }
                 )
             if edits:
-                self.db_manager.save_daily_suivi_form_edits(target_day, edits)
-            self.db_manager.close_day_from_suivi_form(target_day)
+                self.db_manager.save_daily_tracking_form_edits(target_day, edits)
+            self.db_manager.close_day_from_tracking_form(target_day)
 
         # Run autosave after successful closure
         self._run_autosave(target_day)
@@ -253,32 +253,6 @@ class ZoneActionsEtats(QWidget):
         QMessageBox.information(
             parent, "Clôture effectuée", "Nouvelle journée créée", QMessageBox.StandardButton.Ok
         )
-
-        # Create new day with same CA final value
-        if self.tracking_service is not None:
-            next_day = self.tracking_service.create_next_day(target_day, ca_final)
-        elif self.db_manager is not None:
-            # Calculate next day manually
-            from datetime import datetime, timedelta
-
-            for fmt in ["%d/%m/%y", "%Y-%m-%d"]:
-                try:
-                    current_date = datetime.strptime(target_day, fmt)
-                    next_day = (current_date + timedelta(days=1)).strftime(DATE_FORMAT_DAY)
-                    break
-                except ValueError:
-                    continue
-            else:
-                raise ValueError(f"Unable to parse date: {target_day}")
-            # Get categories
-            current_rows = self.db_manager.get_daily_suivi_form(target_day)
-            edits = []
-            for row in current_rows:
-                categorie = str(row.get("categorie", "")).strip()
-                if categorie:
-                    edits.append({"categorie": categorie, "achats_ttc": 0, "ca_final": ca_final})
-            if edits:
-                self.db_manager.save_daily_suivi_form_edits(next_day, edits)
 
         # Open Rapport Vente Jour dialog with complete daily report
         if self.reports_presenter is not None:

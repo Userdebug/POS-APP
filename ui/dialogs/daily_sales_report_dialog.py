@@ -19,7 +19,6 @@ from PyQt6.QtWidgets import (
     QHBoxLayout,
     QLabel,
     QPushButton,
-    QScrollArea,
     QSizePolicy,
     QTableWidget,
     QTableWidgetItem,
@@ -54,23 +53,22 @@ class RapportVenteJourDialog(QDialog):
         Args:
             parent: Parent widget.
             jour: Date in ISO format (YYYY-MM-DD).
-            rapport_data: JournalierCompletData with sales, expenses, receptions.
+            rapport_data: JournalierCompletData with sales, expenses, achats.
         """
         super().__init__(parent)
         self.setWindowTitle(f"Journalier - {jour}")
-        self.setMinimumSize(780, 620)
-        self.resize(780, 620)
+        self.setMinimumSize(800, 700)
+        self.resize(800, 700)
 
         self._jour = jour
         self._data = rapport_data
+        self._rows_per_page = 10
+
+        self._sales_page = 0
+        self._expenses_page = 0
+        self._achats_page = 0
 
         self.setStyleSheet(DIALOG_BASE)
-
-        # Scroll area for content
-        scroll = QScrollArea()
-        scroll.setWidgetResizable(True)
-        scroll.setHorizontalScrollBarPolicy(Qt.ScrollBarPolicy.ScrollBarAlwaysOff)
-        scroll.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
 
         content_widget = QWidget()
         content_layout = QVBoxLayout(content_widget)
@@ -88,19 +86,38 @@ class RapportVenteJourDialog(QDialog):
         lay_sales = QVBoxLayout(grp_sales)
         lay_sales.setContentsMargins(8, 8, 8, 8)
 
-        self.table_sales = QTableWidget(0, 5)
+        self.table_sales = QTableWidget(self._rows_per_page, 5)
         self.table_sales.setHorizontalHeaderLabels(
-            ["Categorie", "Produit", "Qté vendue", "Total", "Stock final"]
+            ["Categorie", "Produit", "Qté vendeuse", "Total", "Stock final"]
         )
         self.table_sales.setStyleSheet(REPORT_TABLE)
         self.table_sales.setAlternatingRowColors(True)
         self.table_sales.verticalHeader().setVisible(False)
         self.table_sales.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        header = self.table_sales.horizontalHeader()
-        if header is not None:
-            header.setStretchLastSection(True)
-        self.table_sales.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        self.table_sales.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.table_sales.setMaximumHeight(
+            self.table_sales.horizontalHeader().height()
+            + self.table_sales.rowHeight(0) * (self._rows_per_page + 1)
+        )
         lay_sales.addWidget(self.table_sales)
+
+        self._sales_nav = QHBoxLayout()
+        self._sales_nav.setSpacing(8)
+        btn_prev_sales = QPushButton("<")
+        btn_prev_sales.setStyleSheet(SECONDARY_BUTTON)
+        btn_prev_sales.setFixedSize(40, 30)
+        btn_prev_sales.clicked.connect(lambda: self._change_page("sales", -1))
+        self._sales_nav.addWidget(btn_prev_sales)
+        self.lbl_page_sales = QLabel("Page 1/1")
+        self.lbl_page_sales.setStyleSheet("color: #6b7280; font-size: 12px;")
+        self._sales_nav.addWidget(self.lbl_page_sales)
+        btn_next_sales = QPushButton(">")
+        btn_next_sales.setStyleSheet(SECONDARY_BUTTON)
+        btn_next_sales.setFixedSize(40, 30)
+        btn_next_sales.clicked.connect(lambda: self._change_page("sales", 1))
+        self._sales_nav.addWidget(btn_next_sales)
+        self._sales_nav.addStretch(1)
+        lay_sales.addLayout(self._sales_nav)
 
         self.lbl_total_ventes = QLabel("Total ventes: 0 Ar")
         self.lbl_total_ventes.setStyleSheet(
@@ -116,19 +133,36 @@ class RapportVenteJourDialog(QDialog):
         lay_depenses = QVBoxLayout(grp_depenses)
         lay_depenses.setContentsMargins(8, 8, 8, 8)
 
-        self.table_depenses = QTableWidget(0, 3)
+        self.table_depenses = QTableWidget(self._rows_per_page, 3)
         self.table_depenses.setHorizontalHeaderLabels(["Designation", "Valeur", "Remarque"])
         self.table_depenses.setStyleSheet(REPORT_TABLE)
         self.table_depenses.setAlternatingRowColors(True)
         self.table_depenses.verticalHeader().setVisible(False)
         self.table_depenses.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        header = self.table_depenses.horizontalHeader()
-        if header is not None:
-            header.setStretchLastSection(True)
-        self.table_depenses.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
+        self.table_depenses.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.table_depenses.setMaximumHeight(
+            self.table_depenses.horizontalHeader().height()
+            + self.table_depenses.rowHeight(0) * (self._rows_per_page + 1)
         )
         lay_depenses.addWidget(self.table_depenses)
+
+        self._expenses_nav = QHBoxLayout()
+        self._expenses_nav.setSpacing(8)
+        btn_prev_exp = QPushButton("<")
+        btn_prev_exp.setStyleSheet(SECONDARY_BUTTON)
+        btn_prev_exp.setFixedSize(40, 30)
+        btn_prev_exp.clicked.connect(lambda: self._change_page("expenses", -1))
+        self._expenses_nav.addWidget(btn_prev_exp)
+        self.lbl_page_expenses = QLabel("Page 1/1")
+        self.lbl_page_expenses.setStyleSheet("color: #6b7280; font-size: 12px;")
+        self._expenses_nav.addWidget(self.lbl_page_expenses)
+        btn_next_exp = QPushButton(">")
+        btn_next_exp.setStyleSheet(SECONDARY_BUTTON)
+        btn_next_exp.setFixedSize(40, 30)
+        btn_next_exp.clicked.connect(lambda: self._change_page("expenses", 1))
+        self._expenses_nav.addWidget(btn_next_exp)
+        self._expenses_nav.addStretch(1)
+        lay_depenses.addLayout(self._expenses_nav)
 
         self.lbl_total_depenses = QLabel("Total depenses: 0 Ar")
         self.lbl_total_depenses.setStyleSheet(
@@ -139,39 +173,54 @@ class RapportVenteJourDialog(QDialog):
         content_layout.addWidget(grp_depenses)
 
         # Section 3: Receptions (Invoices)
-        grp_factures = QGroupBox("Resume des factures")
-        grp_factures.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
-        lay_factures = QVBoxLayout(grp_factures)
-        lay_factures.setContentsMargins(8, 8, 8, 8)
+        grp_achats = QGroupBox("Resume des achats")
+        grp_achats.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred)
+        lay_achats = QVBoxLayout(grp_achats)
+        lay_achats.setContentsMargins(8, 8, 8, 8)
 
-        self.table_factures = QTableWidget(0, 3)
-        self.table_factures.setHorizontalHeaderLabels(["N° Facture", "Fournisseur", "Total TTC"])
-        self.table_factures.setStyleSheet(REPORT_TABLE)
-        self.table_factures.setAlternatingRowColors(True)
-        self.table_factures.verticalHeader().setVisible(False)
-        self.table_factures.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
-        header = self.table_factures.horizontalHeader()
-        if header is not None:
-            header.setStretchLastSection(True)
-        self.table_factures.setSizePolicy(
-            QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Preferred
+        self.table_achats = QTableWidget(self._rows_per_page, 3)
+        self.table_achats.setHorizontalHeaderLabels(["N° Facture", "Fournisseur", "Total TTC"])
+        self.table_achats.setStyleSheet(REPORT_TABLE)
+        self.table_achats.setAlternatingRowColors(True)
+        self.table_achats.verticalHeader().setVisible(False)
+        self.table_achats.setEditTriggers(QTableWidget.EditTrigger.NoEditTriggers)
+        self.table_achats.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
+        self.table_achats.setMaximumHeight(
+            self.table_achats.horizontalHeader().height()
+            + self.table_achats.rowHeight(0) * (self._rows_per_page + 1)
         )
-        lay_factures.addWidget(self.table_factures)
+        lay_achats.addWidget(self.table_achats)
 
-        self.lbl_total_factures = QLabel("Total factures: 0 Ar")
-        self.lbl_total_factures.setStyleSheet(
+        self._achats_nav = QHBoxLayout()
+        self._achats_nav.setSpacing(8)
+        btn_prev_rec = QPushButton("<")
+        btn_prev_rec.setStyleSheet(SECONDARY_BUTTON)
+        btn_prev_rec.setFixedSize(40, 30)
+        btn_prev_rec.clicked.connect(lambda: self._change_page("achats", -1))
+        self._achats_nav.addWidget(btn_prev_rec)
+        self.lbl_page_achats = QLabel("Page 1/1")
+        self.lbl_page_achats.setStyleSheet("color: #6b7280; font-size: 12px;")
+        self._achats_nav.addWidget(self.lbl_page_achats)
+        btn_next_rec = QPushButton(">")
+        btn_next_rec.setStyleSheet(SECONDARY_BUTTON)
+        btn_next_rec.setFixedSize(40, 30)
+        btn_next_rec.clicked.connect(lambda: self._change_page("achats", 1))
+        self._achats_nav.addWidget(btn_next_rec)
+        self._achats_nav.addStretch(1)
+        lay_achats.addLayout(self._achats_nav)
+
+        self.lbl_total_achats = QLabel("Total achats: 0 Ar")
+        self.lbl_total_achats.setStyleSheet(
             "font-size: 15px; font-weight: 700; color: #f5f3ff;"
             "background-color: #2563eb; border-radius: 6px; padding: 6px 12px;"
         )
-        lay_factures.addWidget(self.lbl_total_factures)
-        content_layout.addWidget(grp_factures)
-
-        scroll.setWidget(content_widget)
+        lay_achats.addWidget(self.lbl_total_achats)
+        content_layout.addWidget(grp_achats)
 
         # Root layout
         root = QVBoxLayout(self)
-        root.setContentsMargins(0, 0, 0, 0)
-        root.addWidget(scroll, 1)
+        root.setContentsMargins(16, 16, 16, 16)
+        root.addWidget(content_widget, 1)
 
         # Buttons
         button_container = QHBoxLayout()
@@ -202,49 +251,120 @@ class RapportVenteJourDialog(QDialog):
         if self._data is None:
             return
 
-        # Sales table
         sales = getattr(self._data, "sales", [])
-        self.table_sales.setRowCount(len(sales))
-        for i, row in enumerate(sales):
-            self.table_sales.setItem(i, 0, QTableWidgetItem(row.categorie))
-            self.table_sales.setItem(i, 1, QTableWidgetItem(row.produit))
-            self.table_sales.setItem(i, 2, QTableWidgetItem(str(row.quantite_vendue)))
-            item_total = QTableWidgetItem(format_grouped_int(row.total_vente))
-            item_total.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            self.table_sales.setItem(i, 3, item_total)
-            item_stock = QTableWidgetItem(str(row.stock_final))
-            item_stock.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            self.table_sales.setItem(i, 4, item_stock)
+        expenses = getattr(self._data, "expenses", [])
+        achats = getattr(self._data, "achats", [])
 
         total_ventes = getattr(self._data, "total_ventes", 0)
-        self.lbl_total_ventes.setText(f"Total ventes: {format_grouped_int(total_ventes)} Ar")
-
-        # Expenses table
-        expenses = getattr(self._data, "expenses", [])
-        self.table_depenses.setRowCount(len(expenses))
-        for i, row in enumerate(expenses):
-            self.table_depenses.setItem(i, 0, QTableWidgetItem(row.designation))
-            item_val = QTableWidgetItem(format_grouped_int(row.valeur))
-            item_val.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            self.table_depenses.setItem(i, 1, item_val)
-            self.table_depenses.setItem(i, 2, QTableWidgetItem(row.remarque))
-
         total_depenses = getattr(self._data, "total_depenses", 0)
+        total_achats = getattr(self._data, "total_achats", 0)
+
+        self._sales_page = 0
+        self._expenses_page = 0
+        self._achats_page = 0
+
+        self._sales_data = sales
+        self._expenses_data = expenses
+        self._achats_data = achats
+
+        self._render_page("sales")
+        self._render_page("expenses")
+        self._render_page("achats")
+
+        self.lbl_total_ventes.setText(f"Total ventes: {format_grouped_int(total_ventes)} Ar")
         self.lbl_total_depenses.setText(f"Total depenses: {format_grouped_int(total_depenses)} Ar")
+        self.lbl_total_achats.setText(f"Total achats: {format_grouped_int(total_achats)} Ar")
 
-        # Receptions table
-        receptions = getattr(self._data, "receptions", [])
-        self.table_factures.setRowCount(len(receptions))
-        for i, row in enumerate(receptions):
-            self.table_factures.setItem(i, 0, QTableWidgetItem(row.numero_facture))
-            self.table_factures.setItem(i, 1, QTableWidgetItem(row.fournisseur))
-            item_ttc = QTableWidgetItem(format_grouped_int(row.total_ttc))
-            item_ttc.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
-            self.table_factures.setItem(i, 2, item_ttc)
+    def _change_page(self, table: str, delta: int) -> None:
+        """Change page for a table."""
+        if table == "sales":
+            total = len(self._sales_data)
+            current = self._sales_page
+        elif table == "expenses":
+            total = len(self._expenses_data)
+            current = self._expenses_page
+        else:
+            total = len(self._achats_data)
+            current = self._achats_page
 
-        total_receptions = getattr(self._data, "total_receptions", 0)
-        total_text = f"Total factures: {format_grouped_int(total_receptions)} Ar"
-        self.lbl_total_factures.setText(total_text)
+        max_page = max(0, (total - 1) // self._rows_per_page)
+        new_page = current + delta
+
+        if new_page < 0 or new_page > max_page:
+            return
+
+        if table == "sales":
+            self._sales_page = new_page
+        elif table == "expenses":
+            self._expenses_page = new_page
+        else:
+            self._achats_page = new_page
+
+        self._render_page(table)
+
+    def _render_page(self, table: str) -> None:
+        """Render a single page of data for a table."""
+        if table == "sales":
+            data = getattr(self, "_sales_data", [])
+            page = self._sales_page
+            tbl = self.table_sales
+            lbl = self.lbl_page_sales
+        elif table == "expenses":
+            data = getattr(self, "_expenses_data", [])
+            page = self._expenses_page
+            tbl = self.table_depenses
+            lbl = self.lbl_page_expenses
+        else:
+            data = getattr(self, "_achats_data", [])
+            page = self._achats_page
+            tbl = self.table_achats
+            lbl = self.lbl_page_achats
+
+        max_page = max(0, (len(data) - 1) // self._rows_per_page) if data else 0
+        lbl.setText(f"Page {page + 1}/{max_page + 1}")
+
+        start = page * self._rows_per_page
+        end = min(start + self._rows_per_page, len(data))
+        page_data = data[start:end] if data else []
+
+        tbl.clearContents()
+        tbl.setRowCount(self._rows_per_page)
+
+        for i, row in enumerate(page_data):
+            if table == "sales":
+                tbl.setItem(i, 0, QTableWidgetItem(row.categorie))
+                tbl.setItem(i, 1, QTableWidgetItem(row.produit))
+                tbl.setItem(i, 2, QTableWidgetItem(str(row.quantite_vendue)))
+                item_total = QTableWidgetItem(format_grouped_int(row.total_vente))
+                item_total.setTextAlignment(
+                    Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+                )
+                tbl.setItem(i, 3, item_total)
+                item_stock = QTableWidgetItem(str(row.stock_final))
+                item_stock.setTextAlignment(
+                    Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+                )
+                tbl.setItem(i, 4, item_stock)
+            elif table == "expenses":
+                tbl.setItem(i, 0, QTableWidgetItem(row.designation))
+                item_val = QTableWidgetItem(format_grouped_int(row.valeur))
+                item_val.setTextAlignment(
+                    Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+                )
+                tbl.setItem(i, 1, item_val)
+                tbl.setItem(i, 2, QTableWidgetItem(row.remarque))
+            else:
+                tbl.setItem(i, 0, QTableWidgetItem(row.numero_facture))
+                tbl.setItem(i, 1, QTableWidgetItem(row.fournisseur))
+                item_ttc = QTableWidgetItem(format_grouped_int(row.total_ttc))
+                item_ttc.setTextAlignment(
+                    Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter
+                )
+                tbl.setItem(i, 2, item_ttc)
+
+        for i in range(len(page_data), self._rows_per_page):
+            for j in range(tbl.columnCount()):
+                tbl.setItem(i, j, QTableWidgetItem(""))
 
     def _on_exporter_clicked(self) -> None:
         """Handle Exporter PDF button click."""
@@ -350,11 +470,11 @@ class RapportVenteJourDialog(QDialog):
                 story.append(table)
             story.append(Spacer(1, 0.5 * cm))
 
-            # Section 3: Receptions
-            story.append(Paragraph("Resume des factures", styles["Heading2"]))
-            if self._data and hasattr(self._data, "receptions"):
+            # Section 3: Achats
+            story.append(Paragraph("Resume des achats", styles["Heading2"]))
+            if self._data and hasattr(self._data, "achats"):
                 fac_data = [["N° Facture", "Fournisseur", "Total TTC"]]
-                for row in self._data.receptions:
+                for row in self._data.achats:
                     fac_data.append(
                         [
                             row.numero_facture,
@@ -362,7 +482,7 @@ class RapportVenteJourDialog(QDialog):
                             format_grouped_int(row.total_ttc),
                         ]
                     )
-                fac_data.append(["", "TOTAL", format_grouped_int(self._data.total_receptions)])
+                fac_data.append(["", "TOTAL", format_grouped_int(self._data.total_achats)])
                 table = Table(fac_data, colWidths=[4 * cm, 6 * cm, 3 * cm])
                 table.setStyle(
                     TableStyle(
@@ -384,6 +504,9 @@ class RapportVenteJourDialog(QDialog):
 
         except ImportError:
             logger.warning("reportlab not installed - skipping PDF generation")
+            return ""
+        except Exception as exc:
+            logger.error("PDF generation failed: %s", exc)
             return ""
 
     def _open_pdf(self, filepath: str) -> None:

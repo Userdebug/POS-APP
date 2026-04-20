@@ -2,7 +2,10 @@
 
 from PyQt6.QtCore import QDate, Qt, QTimer, pyqtSignal
 from PyQt6.QtWidgets import (
+    QComboBox,
     QDateEdit,
+    QDialog,
+    QDialogButtonBox,
     QFormLayout,
     QGridLayout,
     QGroupBox,
@@ -14,6 +17,7 @@ from PyQt6.QtWidgets import (
     QVBoxLayout,
 )
 
+from core.database._manager import DatabaseManager
 from core.formatters import (
     format_grouped_int,
     parse_expiry_dates,
@@ -32,6 +36,7 @@ class ProduitInfoPanel(QGroupBox):
         self.setObjectName("infoPanel")
         self._produit_actuel: dict | None = None
         self._editing = False
+        self._parent_categories: list[str] = []
         self.setStyleSheet("""
             QGroupBox {
                 border: 1px solid #2a3142;
@@ -52,6 +57,11 @@ class ProduitInfoPanel(QGroupBox):
         layout.setContentsMargins(10, 14, 10, 10)
 
         top = QHBoxLayout()
+        self.btn_parent_categories = QPushButton("Categories parentes")
+        self.btn_parent_categories.setMinimumHeight(30)
+        self.btn_parent_categories.setCursor(Qt.CursorShape.PointingHandCursor)
+        self.btn_parent_categories.clicked.connect(self._show_parent_categories)
+        top.addWidget(self.btn_parent_categories)
         self.btn_edit = QPushButton("Editer")
         self.btn_edit.setMinimumHeight(30)
         self.btn_edit.setEnabled(False)
@@ -60,8 +70,8 @@ class ProduitInfoPanel(QGroupBox):
         self.btn_save.setMinimumHeight(30)
         self.btn_save.setEnabled(False)
         self.btn_save.clicked.connect(self._save_edit)
-        top.addWidget(self.btn_edit)
         top.addStretch(1)
+        top.addWidget(self.btn_edit)
         top.addWidget(self.btn_save)
         layout.addLayout(top)
 
@@ -75,7 +85,9 @@ class ProduitInfoPanel(QGroupBox):
         self.lbl_prc = QLabel("-")
 
         self.input_nom = QLineEdit()
-        self.input_categorie = QLineEdit()
+        self.input_categorie = QComboBox()
+        self.input_categorie.setEditable(True)
+        self.input_categorie.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Fixed)
         self.input_dlv = QDateEdit()
         self.input_dlv.setCalendarPopup(True)
         self.input_dlv.setDisplayFormat("dd/MM/yy")
@@ -86,7 +98,6 @@ class ProduitInfoPanel(QGroupBox):
 
         for widget in (
             self.input_nom,
-            self.input_categorie,
             self.input_dlv,
             self.input_pa,
             self.input_pv,
@@ -94,6 +105,7 @@ class ProduitInfoPanel(QGroupBox):
             self.input_min_qte,
         ):
             widget.setReadOnly(True)
+        self.input_categorie.setEnabled(False)
 
         # En promo toggle button
         self._en_promo = False
@@ -111,7 +123,6 @@ class ProduitInfoPanel(QGroupBox):
         edit_grid.addWidget(self.input_nom, 0, 1, 1, 3)
         edit_grid.addWidget(QLabel("Categorie :"), 1, 0)
         edit_grid.addWidget(self.input_categorie, 1, 1)
-        self.input_categorie.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
         edit_grid.addWidget(QLabel("Min (alerte) :"), 1, 2)
         edit_grid.addWidget(self.input_min_qte, 1, 3)
         self.input_min_qte.setSizePolicy(QSizePolicy.Policy.Fixed, QSizePolicy.Policy.Fixed)
@@ -164,7 +175,12 @@ class ProduitInfoPanel(QGroupBox):
         self.lbl_stock.setText(format_grouped_int(b + r))
         self.lbl_prc.setText(f"{format_grouped_int(int(produit.get('prc', round(pa * 1.2))))} Ar")
         self.input_nom.setText(str(produit.get("nom", "")))
-        self.input_categorie.setText(str(produit.get("categorie", "")))
+        current_category = str(produit.get("categorie", ""))
+        self.input_categorie.clear()
+        self.input_categorie.addItem(current_category)
+        if self._parent_categories and current_category not in self._parent_categories:
+            self.input_categorie.addItems(self._parent_categories)
+        self.input_categorie.setCurrentText(current_category)
         dlv_str = str(produit.get("dlv_dlc", ""))
         parsed = parse_expiry_dates(dlv_str)
         if parsed:
@@ -181,7 +197,6 @@ class ProduitInfoPanel(QGroupBox):
     def _set_editable(self, editable: bool):
         for widget in (
             self.input_nom,
-            self.input_categorie,
             self.input_dlv,
             self.input_pa,
             self.input_pv,
@@ -189,6 +204,8 @@ class ProduitInfoPanel(QGroupBox):
             self.input_min_qte,
         ):
             widget.setReadOnly(not editable)
+        # For combobox, enabling means setEditable not enabled - we use setEnabled for the dropdown
+        self.input_categorie.setEnabled(editable)
 
     def _start_edit(self):
         if self._produit_actuel is None:
@@ -210,7 +227,7 @@ class ProduitInfoPanel(QGroupBox):
         min_qte = max(0, parse_grouped_int(self.input_min_qte.text().strip(), default=2))
         updated = dict(self._produit_actuel)
         updated["nom"] = self.input_nom.text().strip() or str(self._produit_actuel.get("nom", ""))
-        updated["categorie"] = self.input_categorie.text().strip() or str(
+        updated["categorie"] = self.input_categorie.currentText().strip() or str(
             self._produit_actuel.get("categorie", "Sans categorie")
         )
         dlv_date = self.input_dlv.date()
@@ -264,3 +281,50 @@ class ProduitInfoPanel(QGroupBox):
                 "}"
                 "QPushButton:hover { background-color: #4b5563; }"
             )
+
+    def _show_parent_categories(self) -> None:
+        """Load and display parent categories in a dialog."""
+        db = DatabaseManager()
+        query = (
+            "SELECT DISTINCT categorie FROM produits "
+            "WHERE categorie IS NOT NULL AND categorie != '' "
+            "ORDER BY categorie"
+        )
+        rows = db.fetch_all(query)
+        categories = [row[0] for row in rows] if rows else []
+        self._parent_categories = categories
+
+        dialog = QDialog(self)
+        dialog.setWindowTitle("Categories parentes")
+        dialog.setMinimumSize(300, 400)
+        layout = QVBoxLayout(dialog)
+
+        form = QFormLayout()
+        combo = QComboBox()
+        combo.addItems(categories)
+        form.addRow("Choisir une categorie:", combo)
+        layout.addLayout(form)
+
+        buttons = QDialogButtonBox(
+            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
+        )
+        buttons.accepted.connect(lambda: self._select_parent_category(combo.currentText(), dialog))
+        buttons.rejected.connect(dialog.reject)
+        layout.addWidget(buttons)
+
+        dialog.exec()
+
+    def _select_parent_category(self, category: str, dialog: QDialog) -> None:
+        """Apply the selected parent category to the product."""
+        dialog.accept()
+        if category and self._produit_actuel:
+            self._fill_fields_with_category(category)
+
+    def _fill_fields_with_category(self, category: str) -> None:
+        """Fill the category field with the selected value."""
+        self.input_categorie.setCurrentText(category)
+        if self._editing:
+            updated = dict(self._produit_actuel)
+            updated["categorie"] = category
+            self._produit_actuel = updated
+            self._fill_fields(updated)

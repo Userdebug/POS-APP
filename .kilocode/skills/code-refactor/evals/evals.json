@@ -1,0 +1,34 @@
+{
+  "evals": [
+    {
+      "id": 1,
+      "prompt": "Rename database table 'old_products' to 'products', copy all data, update all code references, then delete old table",
+      "expected_output": "products table with data, no code references old_products, old table deleted"
+    },
+    {
+      "id": 2,
+      "prompt": "Find and fix column name mismatch: query returns 'total_amount' but code expects 'total'",
+      "expected_output": "Code correctly accesses data using dict(row) keys that match SQL aliases"
+    },
+    {
+      "id": 3,
+      "prompt": "Rename function 'calculateTotal' to 'calculate_total' across all Python files",
+      "expected_output": "All calls updated to new function name, no orphaned references"
+    },
+    {
+      "id": 4,
+      "prompt": "Clean up duplicate tables: 'user_data' and 'users' both exist with similar data. Analyze which to keep, migrate data, update references, delete obsolete table",
+      "expected_output": "Single users table, all code updated, no data loss"
+    },
+    {
+      "id": 5,
+      "prompt": "After renaming column 'qty' to 'quantity', fix all Python code that accessed old column name",
+      "expected_output": "All code references updated, queries return correct data"
+    },
+    {
+      "id": 6,
+      "prompt": "Add new calculated field 'profit = revenue - cost' to existing sales table. Calculate for all rows, verify values make sense",
+      "expected_output": "profit field calculated correctly, values positive when revenue > cost"
+    }
+  ]
+}

@@ -723,6 +723,54 @@ class DatabaseManager:
                 params + [prod_id for _, prod_id in valid_items],
             )
 
+    def record_stock_movement(
+        self,
+        produit_id: int,
+        type_mouvement: str,
+        quantite: int,
+        stock_boutique_avant: int,
+        stock_boutique_apres: int,
+        stock_reserve_avant: int = 0,
+        stock_reserve_apres: int = 0,
+        motif: str | None = None,
+    ) -> None:
+        """Enregistre un mouvement de stock dans la table mouvements_stock.
+
+        Args:
+            produit_id: ID du produit.
+            type_mouvement: Type de mouvement (ex: 'RB', 'EB', 'ER', 'ENV', etc.).
+            quantite: Quantité déplacée (négatif pour sortie, positif pour entrée).
+            stock_boutique_avant: Stock boutique avant mouvement.
+            stock_boutique_apres: Stock boutique après mouvement.
+            stock_reserve_avant: Stock réserve avant (défaut 0).
+            stock_reserve_apres: Stock réserve après (défaut 0).
+            motif: Motif optionnel.
+        """
+        from core.constants import DATE_FORMAT_DAY
+
+        jour = datetime.now().strftime(DATE_FORMAT_DAY)
+        with self._connect() as conn:
+            conn.execute(
+                """
+                INSERT INTO mouvements_stock
+                (jour, produit_id, type_mouvement, quantite,
+                 stock_boutique_avant, stock_reserve_avant,
+                 stock_boutique_apres, stock_reserve_apres, motif)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    jour,
+                    produit_id,
+                    type_mouvement,
+                    quantite,
+                    stock_boutique_avant,
+                    stock_reserve_avant,
+                    stock_boutique_apres,
+                    stock_reserve_apres,
+                    motif,
+                ),
+            )
+
     def export_database(self, output_path: str | Path) -> dict[str, Any]:
         """Exporter la base SQLite vers un fichier.
 

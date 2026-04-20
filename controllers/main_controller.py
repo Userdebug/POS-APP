@@ -47,6 +47,7 @@ class MainController(QObject):
     data_loaded = pyqtSignal(list)  # produits: list[dict]
     navigation_requested = pyqtSignal(str)  # screen
     header_data_updated = pyqtSignal(dict)  # header zone data
+    sf_data_updated = pyqtSignal(str)  # jour: date for SF table refresh
 
     def __init__(self, user: dict[str, Any]) -> None:
         """Initialize the controller with user context.
@@ -255,53 +256,89 @@ class MainController(QObject):
         Args:
             sales_rows: List of sale records to persist.
         """
-        for row in sales_rows or []:
-            produit_id = int(row.get("produit_id", 0) or 0)
-            if produit_id <= 0:
-                continue
-            try:
-                self.db_manager.record_sale(
-                    produit_id=produit_id,
-                    produit_nom=str(row.get("produit", "")),
-                    quantite=max(1, int(row.get("quantite", 1) or 1)),
-                    prix_unitaire=max(0, int(row.get("prix_unitaire", 0) or 0)),
-                    session_id=int(self.session_id),
-                )
-            except (RuntimeError, TypeError, ValueError) as exc:
-                logger.warning("vente non enregistree pour produit_id=%s: %s", produit_id, exc)
-                continue
+        try:
+            for row in sales_rows or []:
+                produit_id = int(row.get("produit_id", 0) or 0)
+                if produit_id <= 0:
+                    continue
+                try:
+                    self.db_manager.record_sale(
+                        produit_id=produit_id,
+                        produit_nom=str(row.get("produit", "")),
+                        quantite=max(1, int(row.get("quantite", 1) or 1)),
+                        prix_unitaire=max(0, int(row.get("prix_unitaire", 0) or 0)),
+                        session_id=int(self.session_id),
+                    )
+                except (RuntimeError, TypeError, ValueError) as exc:
+                    logger.warning("vente non enregistree pour produit_id=%s: %s", produit_id, exc)
+                    continue
 
-        # Refresh dashboard after recording sales
-        from datetime import date
+            # Refresh dashboard after recording sales
+            from datetime import date
 
-        today = date.today().isoformat()
-        self._refresh_all_data(today)
-        self.refresh_header_data()
+            today = date.today().isoformat()
+            self._refresh_all_data(today)
+            self.refresh_header_data()
 
-        # Update live CA for SF table margin display
-        self.reports_presenter.update_live_ca(today)
+            # Update live CA for SF table margin display
+            self.reports_presenter.update_live_ca(today)
 
-        # Refresh products to update stock quantities in ZoneProduits
-        # This ensures UI reflects new stock levels after encaissement
-        self.load_products()
+            # Update stock value (SF) for SF table margin display
+            from services.analyse_journaliere_service import AnalyseJournaliereService
+
+            analyse_service = AnalyseJournaliereService(self.db_manager)
+            analyse_service.update_stock_value(today)
+
+            # Emit signal to refresh SF table widget
+            self.sf_data_updated.emit(today)
+
+            # Refresh products to update stock quantities in ZoneProduits
+            # This ensures UI reflects new stock levels after encaissement
+            self.load_products()
+        except Exception as e:
+            logger.error("Error in sales day recording: %s", e)
+            # Don't re-raise - allow app to continue running
 
     def _on_transaction_finalisee(self, mode: str, montant: int) -> None:
         """Handle transaction finalization - refresh data.
 
         Args:
-            mode: Transaction mode (e.g., 'caisse', 'especes')
+            mode: Transaction mode (e.g., 'caisse', 'especes', 'achats')
             montant: Transaction amount
         """
-        # Refresh dashboard totals and header data after any transaction
-        from datetime import date
+        try:
+            # Refresh dashboard totals and header data after any transaction
+            from datetime import date
 
-        today = date.today().isoformat()
-        self._refresh_all_data(today)
-        self.refresh_header_data()
+            today = date.today().isoformat()
+            self._refresh_all_data(today)
+            self.refresh_header_data()
 
-        # Refresh products to update stock quantities in ZoneProduits
-        # This ensures UI reflects new stock levels after encaisser or payer
-        self.load_products()
+            # Update live CA for SF table margin display
+            self.reports_presenter.update_live_ca(today)
+
+            # Update purchases (achats) for SF table when invoice is added
+            if mode in ("achats", "caisse", "especes"):
+                from services.analyse_journaliere_service import AnalyseJournaliereService
+
+                analyse_service = AnalyseJournaliereService(self.db_manager)
+                analyse_service.update_purchases(today)
+
+            # Update stock value (SF) for SF table margin display
+            from services.analyse_journaliere_service import AnalyseJournaliereService
+
+            analyse_service = AnalyseJournaliereService(self.db_manager)
+            analyse_service.update_stock_value(today)
+
+            # Emit signal to refresh SF table widget
+            self.sf_data_updated.emit(today)
+
+            # Refresh products to update stock quantities in ZoneProduits
+            # This ensures UI reflects new stock levels after encaisser or payer
+            self.load_products()
+        except Exception as e:
+            logger.error("Error in transaction finalization: %s", e)
+            # Don't re-raise - allow app to continue running
 
     def on_transaction_finalised(self, mode: str = "", montant: int = 0) -> None:
         """English alias for transaction finalised handler."""
@@ -491,34 +528,38 @@ class MainController(QObject):
 
     def refresh_header_data_forced(self) -> None:
         """Force refresh header data bypassing cache."""
-        from datetime import datetime
+        try:
+            from datetime import datetime
 
-        today = datetime.now().strftime("%d/%m/%y")
-        user_name = self.user.get("nom", "Operateur")
-        transaction_count = len(self.db_manager.list_daily_sales(today))
+            today = datetime.now().strftime("%d/%m/%y")
+            user_name = self.user.get("nom", "Operateur")
+            transaction_count = len(self.db_manager.list_daily_sales(today))
 
-        # Extract product dicts (with stock info) from repository queries
-        promo_products = self.db_manager.products.list_products_en_promo()
-        near_dlv_products = self.db_manager.products.list_products_near_dlv(30)
-        to_remove_products = self.db_manager.products.list_products_to_remove()
+            # Extract product dicts (with stock info) from repository queries
+            promo_products = self.db_manager.products.list_products_en_promo()
+            near_dlv_products = self.db_manager.products.list_products_near_dlv(30)
+            to_remove_products = self.db_manager.products.list_products_to_remove()
 
-        header_data = {
-            "date": today,
-            "user": user_name,
-            "transaction_count": transaction_count,
-            "promo_products": promo_products,
-            "near_dlv_products": near_dlv_products,
-            "to_remove_products": to_remove_products,
-        }
-        logger.debug(
-            "Header data refreshed: %s transactions, %s promo, %s near DLV, %s to remove",
-            transaction_count,
-            len(promo_products),
-            len(near_dlv_products),
-            len(to_remove_products),
-        )
-        self._cached_header_data = header_data
-        self.header_data_updated.emit(header_data)
+            header_data = {
+                "date": today,
+                "user": user_name,
+                "transaction_count": transaction_count,
+                "promo_products": promo_products,
+                "near_dlv_products": near_dlv_products,
+                "to_remove_products": to_remove_products,
+            }
+            logger.debug(
+                "Header data refreshed: %s transactions, %s promo, %s near DLV, %s to remove",
+                transaction_count,
+                len(promo_products),
+                len(near_dlv_products),
+                len(to_remove_products),
+            )
+            self._cached_header_data = header_data
+            self.header_data_updated.emit(header_data)
+        except Exception as e:
+            logger.error("Error refreshing header data: %s", e)
+            # Don't re-raise - allow app to continue running
 
     def set_global_refresh_enabled(self, enabled: bool) -> None:
         """Enable or disable the global refresh timer.

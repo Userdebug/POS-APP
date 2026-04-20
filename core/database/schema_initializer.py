@@ -33,6 +33,7 @@ class SchemaInitializer:
         si elles n'existent pas deja.
         Ajoute les colonnes de soft delete a la table ventes.
         Migre les colonnes de analyse_journaliere_categories.
+        Renomme les tables analyse_journaliere_categories -> Tcollecte et achats -> Tachats.
         """
         with connect() as conn:
             columns = {row[1] for row in conn.execute("PRAGMA table_info(produits)").fetchall()}
@@ -42,6 +43,53 @@ class SchemaInitializer:
             if "prix_promo" not in columns:
                 conn.execute("ALTER TABLE produits ADD COLUMN prix_promo INTEGER DEFAULT 0")
                 conn.execute("UPDATE produits SET prix_promo = pa WHERE prix_promo = 0")
+
+            # Migration: rename analyse_journaliere_categories to Tcollecte
+            old_table = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='analyse_journaliere_categories'"
+            ).fetchone()
+            if old_table:
+                # Check if new name doesn't exist yet
+                new_table = conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='Tcollecte'"
+                ).fetchone()
+                if not new_table:
+                    conn.execute("ALTER TABLE analyse_journaliere_categories RENAME TO Tcollecte")
+
+            # Migration: Add ca_temporaire column to Tcollecte if missing
+            tcollecte_exists = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='Tcollecte'"
+            ).fetchone()
+            if tcollecte_exists:
+                tcollecte_columns = {
+                    row[1] for row in conn.execute("PRAGMA table_info(Tcollecte)").fetchall()
+                }
+                if "ca_temporaire" not in tcollecte_columns:
+                    conn.execute(
+                        "ALTER TABLE Tcollecte ADD COLUMN ca_temporaire INTEGER NOT NULL DEFAULT 0"
+                    )
+
+            # Migration: rename achats to Tachats
+            old_achats = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='achats'"
+            ).fetchone()
+            if old_achats:
+                new_achats = conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='Tachats'"
+                ).fetchone()
+                if not new_achats:
+                    conn.execute("ALTER TABLE achats RENAME TO Tachats")
+
+            # Migration: rename achats_lignes to Tachats_lignes
+            old_lignes = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='achats_lignes'"
+            ).fetchone()
+            if old_lignes:
+                new_lignes = conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' AND name='Tachats_lignes'"
+                ).fetchone()
+                if not new_lignes:
+                    conn.execute("ALTER TABLE achats_lignes RENAME TO Tachats_lignes")
 
             # Migration soft delete pour ventes
             table_exists = conn.execute(
@@ -61,38 +109,36 @@ class SchemaInitializer:
                 if "deleted_reason" not in ventes_columns:
                     conn.execute("ALTER TABLE ventes ADD COLUMN deleted_reason TEXT NULL")
 
-            # Migration pour analyse_journaliere_categories
-            table_exists = conn.execute(
-                "SELECT name FROM sqlite_master WHERE type='table' AND name='analyse_journaliere_categories'"
+            # Migration pour Tcollecte (renamed from analyse_journaliere_categories)
+            tcollecte_exists = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='Tcollecte'"
             ).fetchone()
-            if table_exists:
-                ajc_columns = {
-                    row[1]
-                    for row in conn.execute(
-                        "PRAGMA table_info(analyse_journaliere_categories)"
-                    ).fetchall()
+            if tcollecte_exists:
+                tcollecte_columns = {
+                    row[1] for row in conn.execute("PRAGMA table_info(Tcollecte)").fetchall()
                 }
 
-                # Check if we need to migrate column names (SQLite doesn't support RENAME COLUMN)
+                # Check if we need to migrate column names (from old suffix format)
                 needs_migration = (
-                    "si_ht" in ajc_columns
-                    or "achats_ttc" in ajc_columns
-                    or "vente_ca_ttc" in ajc_columns
-                    or "sf_ht" in ajc_columns
-                    or "vente_theorique_ttc" in ajc_columns
-                    or "marge_ttc" in ajc_columns
+                    "si_ht" in tcollecte_columns
+                    or "achats_ttc" in tcollecte_columns
+                    or "vente_ca_ttc" in tcollecte_columns
+                    or "sf_ht" in tcollecte_columns
+                    or "vente_theorique_ttc" in tcollecte_columns
+                    or "marge_ttc" in tcollecte_columns
                 )
 
                 if needs_migration:
                     # Create new table with correct schema
                     conn.execute("""
-                        CREATE TABLE analyse_journaliere_categories_new (
+                        CREATE TABLE Tcollecte_new (
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
                             jour TEXT NOT NULL,
                             categorie_id INTEGER NOT NULL,
                             si INTEGER NOT NULL DEFAULT 0,
                             achats INTEGER NOT NULL DEFAULT 0,
                             ca INTEGER NOT NULL DEFAULT 0,
+                            ca_temporaire INTEGER NOT NULL DEFAULT 0,
                             sf INTEGER NOT NULL DEFAULT 0,
                             env INTEGER NOT NULL DEFAULT 0,
                             vente_theorique INTEGER NOT NULL DEFAULT 0,
@@ -124,7 +170,9 @@ class SchemaInitializer:
                         "si",
                         "achats",
                         "ca",
+                        "ca_temporaire",
                         "sf",
+                        "env",
                         "vente_theorique",
                         "marge",
                         "cloturee",
@@ -132,49 +180,32 @@ class SchemaInitializer:
                         "updated_at",
                     ]:
                         old_col = column_mappings.get(new_col, new_col)
-                        if old_col in ajc_columns:
+                        if old_col in tcollecte_columns:
                             select_columns.append(old_col)
                         else:
                             select_columns.append(
-                                f"0 AS {new_col}" if new_col in ["env"] else f"NULL AS {new_col}"
+                                f"0 AS {new_col}"
+                                if new_col in ["env", "ca_temporaire"]
+                                else f"NULL AS {new_col}"
                             )
 
                     # Insert data
                     conn.execute(f"""
-                        INSERT INTO analyse_journaliere_categories_new
-                        (id, jour, categorie_id, si, achats, ca, sf, vente_theorique, marge, cloturee, created_at, updated_at)
+                        INSERT INTO Tcollecte_new
+                        (id, jour, categorie_id, si, achats, ca, ca_temporaire, sf, env, vente_theorique, marge, cloturee, created_at, updated_at)
                         SELECT {", ".join(select_columns)}
-                        FROM analyse_journaliere_categories
+                        FROM Tcollecte
                     """)
 
                     # Replace old table
-                    conn.execute("DROP TABLE analyse_journaliere_categories")
-                    conn.execute(
-                        "ALTER TABLE analyse_journaliere_categories_new RENAME TO analyse_journaliere_categories"
-                    )
+                    conn.execute("DROP TABLE Tcollecte")
+                    conn.execute("ALTER TABLE Tcollecte_new RENAME TO Tcollecte")
 
-                # Add env column if missing (for databases that already had correct column names)
-                if "env" not in ajc_columns:
-                    # Check again after potential migration
-                    ajc_columns = {
-                        row[1]
-                        for row in conn.execute(
-                            "PRAGMA table_info(analyse_journaliere_categories)"
-                        ).fetchall()
-                    }
-                    if "env" not in ajc_columns:
-                        conn.execute(
-                            "ALTER TABLE analyse_journaliere_categories ADD COLUMN env INTEGER NOT NULL DEFAULT 0"
-                        )
-
-                # Add ca_temporaire column for live CA calculation from sales (PA * 1.2)
-                ajc_columns_after = {
-                    row[1]
-                    for row in conn.execute(
-                        "PRAGMA table_info(analyse_journaliere_categories)"
-                    ).fetchall()
+                # Add ca_temporaire column if missing (for databases with correct column names but missing the column)
+                tcollecte_columns_after = {
+                    row[1] for row in conn.execute("PRAGMA table_info(Tcollecte)").fetchall()
                 }
-                if "ca_temporaire" not in ajc_columns_after:
+                if "ca_temporaire" not in tcollecte_columns_after:
                     conn.execute(
-                        "ALTER TABLE analyse_journaliere_categories ADD COLUMN ca_temporaire INTEGER NOT NULL DEFAULT 0"
+                        "ALTER TABLE Tcollecte ADD COLUMN ca_temporaire INTEGER NOT NULL DEFAULT 0"
                     )

@@ -151,7 +151,6 @@ class ProductRepository:
                 """
                 SELECT
                     p.id,
-                    p.m3,
                     p.nom,
                     p.pv,
                     p.pa,
@@ -295,3 +294,21 @@ class ProductRepository:
                     continue
             logger.info("Found %d products with passed DLV to remove", len(result))
             return result
+
+    def get_stock(self, produit_id: int) -> tuple[int, int]:
+        """Récupère les stocks boutique et réserve pour un produit.
+
+        Args:
+            produit_id: ID du produit.
+
+        Returns:
+            Tuple (stock_boutique, stock_reserve). (0,0) si produit non trouvé.
+        """
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT stock_boutique, stock_reserve FROM produits WHERE id = ?",
+                (produit_id,),
+            ).fetchone()
+            if row:
+                return (int(row["stock_boutique"] or 0), int(row["stock_reserve"] or 0))
+            return (0, 0)

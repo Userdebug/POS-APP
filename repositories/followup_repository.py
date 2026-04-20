@@ -111,7 +111,7 @@ class FollowupRepository:
                         a.vente_theorique AS vente_theorique,
                         a.marge AS marge,
                         a.cloturee
-                    FROM analyse_journaliere_categories a
+                    FROM Tcollecte a
                     INNER JOIN categories c ON c.id = a.categorie_id
                     WHERE a.jour = ?
                     ORDER BY c.nom ASC
@@ -135,11 +135,14 @@ class FollowupRepository:
 
         # Get valid OW subcategories to filter
         with self._connect() as conn:
-            valid_cats = set(row["nom"] for row in conn.execute("""
+            valid_cats = set(
+                row["nom"]
+                for row in conn.execute("""
                     SELECT c.nom FROM categories c
                     INNER JOIN categories parent ON c.parent_id = parent.id
                     WHERE parent.nom = 'Catégorie 1 - OW (Owners)'
-                    """).fetchall())
+                    """).fetchall()
+            )
 
         daily_collecte = self._daily_collecte_provider(target_day)
         achats_receptions = self._achats_receptions_provider(target_day)
@@ -170,21 +173,38 @@ class FollowupRepository:
             base = current_map.get(cat, {})
             if not base:
                 continue
+            # Si la ligne est cloturée, on la passe telle quelle (pas de sync)
             if int(base.get("cloturee", 0) or 0) == 1:
                 payload.append(base)
                 continue
-            si = int(row.get("si", 0) or 0)
+
+            # Récupérer les valeurs calculées
+            si_calc = int(row.get("si", 0) or 0)
             achats = int(achats_map.get(cat, 0))
             sf = int(row.get("sf", 0) or 0)
             env = int(env_map.get(cat, 0))
-            vente_theorique = si + achats - sf + env
-            vente_ca = int(base.get("vente_ca", 0) or 0)
+
+            # Préserver le SI existant s'il est déjà non nul (report de la veille ou ajustement manuel)
+            existing_si = int(base.get("si", 0) or 0)
+            si_val = existing_si if existing_si != 0 else si_calc
+
+            # Pour les jours non cloturés, le CA (vente_ca) doit être 0 (saisie manuelle uniquement à clôture)
+            # On conserve la valeur existante si elle est non nulle? En théorie, avant clôture, ca=0.
+            # Si l'utilisateur a déjà commencé à saisir, on peut le préserver? L'exigence: sans préremplissage, donc 0.
+            # On force à 0 pour les jours non cloturés.
+            ca_val = 0  # pas de CA final avant clôture
+
+            # Calculer vente_theorique avec la formule corrigée
+            vente_theorique = si_val + achats - sf - env
+            # Marge = CA (0) - vente_theorique → négative, ce qui est attendu pour un jour en cours
+            marge = ca_val - vente_theorique
+
             payload.append(
                 self._build_tracking_row(
                     categorie=cat,
-                    si=si,
+                    si=si_val,
                     achats=achats,
-                    vente_ca=vente_ca,
+                    vente_ca=ca_val,
                     sf=sf,
                     env=env,
                     vente_theorique=vente_theorique,
@@ -208,7 +228,7 @@ class FollowupRepository:
                     a.vente_theorique AS vente_theorique,
                     a.marge AS marge,
                     a.cloturee
-                FROM analyse_journaliere_categories a
+                FROM Tcollecte a
                 INNER JOIN categories c ON c.id = a.categorie_id
                 WHERE a.jour = ?
                 ORDER BY c.nom ASC
@@ -220,14 +240,17 @@ class FollowupRepository:
     def _initialize_daily_tracking_if_missing(self, day: str) -> None:
         # Get valid OW subcategories to filter
         with self._connect() as conn:
-            valid_cats = set(row["nom"] for row in conn.execute("""
+            valid_cats = set(
+                row["nom"]
+                for row in conn.execute("""
                     SELECT c.nom FROM categories c
                     INNER JOIN categories parent ON c.parent_id = parent.id
                     WHERE parent.nom = 'Catégorie 1 - OW (Owners)'
-                    """).fetchall())
+                    """).fetchall()
+            )
 
             existing = conn.execute(
-                "SELECT COUNT(1) AS n FROM analyse_journaliere_categories WHERE jour = ?",
+                "SELECT COUNT(1) AS n FROM Tcollecte WHERE jour = ?",
                 (str(day),),
             ).fetchone()
             if int(existing["n"] or 0) > 0:
@@ -287,7 +310,7 @@ class FollowupRepository:
                 cloturee = int(row.get("cloturee", 0))
                 conn.execute(
                     """
-                    INSERT INTO analyse_journaliere_categories (
+                    INSERT INTO Tcollecte (
                         jour, categorie_id, si, achats, ca, sf, env,
                         vente_theorique, marge, cloturee, updated_at
                     )
@@ -335,6 +358,7 @@ class FollowupRepository:
             vente_ca = int(row.get("vente_ca", base.get("vente_ca", 0)))
             sf = int(row.get("sf", base.get("sf", 0)))
             env = int(base.get("env", 0))
+            # Vente = SI + Achats - SF
             vente_theorique = si + achats - sf + env
             payload.append(
                 self._build_tracking_row(
@@ -351,25 +375,32 @@ class FollowupRepository:
         self.upsert_daily_tracking(day, payload)
 
     def _initialize_daily_tracking_form_if_missing(self, day: str) -> None:
+        # Get yesterday's SF for SI copying
+        yesterday_sf = self._get_yesterday_sf(day)
+
         with self._connect() as conn:
+            # Get existing data from Tcollecte
             existing_rows = conn.execute(
                 """
-                SELECT categorie, ca_final, cloturee
-                FROM suivi_formulaire_journalier
-                WHERE jour = ?
+                SELECT c.nom AS categorie, t.si, t.ca, t.cloturee
+                FROM Tcollecte t
+                JOIN categories c ON t.categorie_id = c.id
+                WHERE t.jour = ?
                 """,
                 (str(day),),
             ).fetchall()
             existing_map = {
                 str(r["categorie"]): {
-                    "ca_final": int(r["ca_final"] or 0),
+                    "si": int(r["si"] or 0),
+                    "ca": int(r["ca"] or 0),
                     "cloturee": int(r["cloturee"] or 0),
                 }
                 for r in existing_rows
             }
 
+            # Get OW categories
             follow_rows = conn.execute("""
-                SELECT c.nom AS categorie
+                SELECT c.nom AS categorie, c.id as categorie_id
                 FROM categories c
                 INNER JOIN categories parent ON c.parent_id = parent.id
                 WHERE parent.nom = 'Catégorie 1 - OW (Owners)'
@@ -392,23 +423,53 @@ class FollowupRepository:
             }
             for row in follow_rows:
                 cat = str(row["categorie"])
-                achats_ttc = int(achats_map.get(cat, 0))
-                ca_final = int(existing_map.get(cat, {}).get("ca_final", ca_map.get(cat, 0)))
+                cat_id = int(row["categorie_id"])
+                # Use existing SI or copy from yesterday's SF
+                si = existing_map.get(cat, {}).get("si", yesterday_sf.get(cat, 0))
+                achats = int(achats_map.get(cat, 0))
+                ca = int(existing_map.get(cat, {}).get("ca", ca_map.get(cat, 0)))
                 cloturee = int(existing_map.get(cat, {}).get("cloturee", 0))
                 conn.execute(
                     """
-                    INSERT INTO suivi_formulaire_journalier (
-                        jour, categorie, achats_ttc, ca_final, cloturee, updated_at
+                    INSERT INTO Tcollecte (
+                        jour, categorie_id, si, achats, ca, sf, env, vente_theorique, marge, cloturee
                     )
-                    VALUES (?, ?, ?, ?, ?, datetime('now'))
-                    ON CONFLICT(jour, categorie) DO UPDATE SET
-                        achats_ttc = excluded.achats_ttc,
-                        ca_final = excluded.ca_final,
+                    VALUES (?, ?, ?, ?, ?, 0, 0, 0, 0, ?)
+                    ON CONFLICT(jour, categorie_id) DO UPDATE SET
+                        si = excluded.si,
+                        achats = excluded.achats,
+                        ca = excluded.ca,
                         cloturee = excluded.cloturee,
                         updated_at = datetime('now')
                     """,
-                    (str(day), cat, achats_ttc, ca_final, cloturee),
+                    (str(day), cat_id, si, achats, ca, cloturee),
                 )
+
+    def _get_yesterday_sf(self, jour: str) -> dict[str, int]:
+        """Get yesterday's SF values by category."""
+        from datetime import datetime, timedelta
+
+        # Calculate yesterday
+        for fmt in ["%d/%m/%y", "%Y-%m-%d"]:
+            try:
+                current_date = datetime.strptime(jour, fmt)
+                yesterday = current_date - timedelta(days=1)
+                yesterday_str = yesterday.strftime(DATE_FORMAT_DAY)
+                break
+            except ValueError:
+                continue
+
+        with self._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT c.nom, t.sf
+                FROM Tcollecte t
+                JOIN categories c ON t.categorie_id = c.id
+                WHERE t.jour = ?
+                """,
+                (yesterday_str,),
+            ).fetchall()
+            return {str(row[0]): int(row[1] or 0) for row in rows}
 
     def get_daily_tracking_form(self, day: str | None = None) -> list[dict[str, Any]]:
         target_day = day or self._today_iso()
@@ -416,14 +477,23 @@ class FollowupRepository:
         with self._connect() as conn:
             rows = conn.execute(
                 """
-                SELECT jour, categorie, achats_ttc, ca_final, cloturee
-                FROM suivi_formulaire_journalier
-                WHERE jour = ?
-                ORDER BY categorie ASC
+                SELECT c.nom AS categorie, t.achats, t.ca, t.cloturee
+                FROM Tcollecte t
+                JOIN categories c ON t.categorie_id = c.id
+                WHERE t.jour = ?
+                ORDER BY c.nom ASC
                 """,
                 (str(target_day),),
             ).fetchall()
-            return [dict(row) for row in rows]
+            return [
+                {
+                    "categorie": row["categorie"],
+                    "achats_ttc": int(row["achats"] or 0),
+                    "ca_final": int(row["ca"] or 0),
+                    "cloturee": int(row["cloturee"] or 0),
+                }
+                for row in rows
+            ]
 
     def save_daily_tracking_form_edits(
         self,
@@ -436,41 +506,55 @@ class FollowupRepository:
         current = self.get_daily_tracking_form(target_day)
         current_map = {str(r.get("categorie", "")): dict(r) for r in current}
         with self._connect() as conn:
+            # Get category ID mapping
+            cat_id_map = {
+                str(r["nom"]): int(r["id"])
+                for r in conn.execute(
+                    "SELECT id, nom FROM categories WHERE parent_id IS NOT NULL"
+                ).fetchall()
+            }
             for row in rows:
                 cat = str(row.get("categorie", "")).strip()
                 if not cat:
                     continue
+                cat_id = cat_id_map.get(cat)
+                if not cat_id:
+                    continue
                 base = current_map.get(cat, {})
                 if int(base.get("cloturee", 0) or 0) == 1 and not force_admin:
                     continue
-                achats_ttc = max(0, int(row.get("achats_ttc", base.get("achats_ttc", 0))))
-                ca_final = max(0, int(row.get("ca_final", base.get("ca_final", 0))))
+                # Get existing SI or use the one from the row
+                si = int(row.get("si", base.get("si", 0)) or 0)
+                # Get achats from the row (not from si!)
+                achats = max(0, int(row.get("achats_ttc", base.get("achats_ttc", 0)) or 0))
+                ca = max(0, int(row.get("ca_final", base.get("ca_final", 0))))
                 old_achats = int(base.get("achats_ttc", 0) or 0)
                 old_ca = int(base.get("ca_final", 0) or 0)
                 conn.execute(
                     """
-                    INSERT INTO suivi_formulaire_journalier (
-                        jour, categorie, achats_ttc, ca_final, cloturee, updated_at
+                    INSERT INTO Tcollecte (
+                        jour, categorie_id, si, achats, ca, cloturee, updated_at
                     )
-                    VALUES (?, ?, ?, ?, 0, datetime('now'))
-                    ON CONFLICT(jour, categorie) DO UPDATE SET
-                        achats_ttc = excluded.achats_ttc,
-                        ca_final = excluded.ca_final,
+                    VALUES (?, ?, ?, ?, ?, 0, datetime('now'))
+                    ON CONFLICT(jour, categorie_id) DO UPDATE SET
+                        si = excluded.si,
+                        achats = excluded.achats,
+                        ca = excluded.ca,
                         updated_at = datetime('now')
                     """,
-                    (target_day, cat, achats_ttc, ca_final),
+                    (target_day, cat_id, si, achats, ca),
                 )
-                if force_admin and (old_achats != achats_ttc or old_ca != ca_final):
+                if force_admin and (old_achats != achats or old_ca != ca):
                     conn.execute(
                         """
                         INSERT INTO audit_admin_actions (action, jour, old_value, new_value, actor)
                         VALUES (?, ?, ?, ?, ?)
                         """,
                         (
-                            "correction_cloture",
+                            "correction_tracking",
                             target_day,
-                            f"{cat}:achats_ttc={old_achats},ca={old_ca}",
-                            f"{cat}:achats_ttc={achats_ttc},ca={ca_final}",
+                            f"{cat}:achats={old_achats},ca={old_ca}",
+                            f"{cat}:achats={achats},ca={ca}",
                             "admin",
                         ),
                     )
@@ -488,15 +572,28 @@ class FollowupRepository:
         ]
         self.close_day_and_prepare_next(target_day, final_ca_by_category)
 
+        # Mark as cloturee in Tcollecte
         with self._connect() as conn:
-            conn.execute(
-                """
-                UPDATE suivi_formulaire_journalier
-                SET cloturee = 1, updated_at = datetime('now')
-                WHERE jour = ?
-                """,
-                (target_day,),
-            )
+            # Get category IDs
+            cat_id_map = {
+                str(r["nom"]): int(r["id"])
+                for r in conn.execute(
+                    "SELECT id, nom FROM categories WHERE parent_id IS NOT NULL"
+                ).fetchall()
+            }
+            for cat, ca_info in {
+                r["categorie"]: r["ca_ttc_final"] for r in final_ca_by_category
+            }.items():
+                cat_id = cat_id_map.get(cat)
+                if cat_id:
+                    conn.execute(
+                        """
+                        UPDATE Tcollecte
+                        SET cloturee = 1, updated_at = datetime('now')
+                        WHERE jour = ? AND categorie_id = ?
+                        """,
+                        (target_day, cat_id),
+                    )
 
         next_day = self._next_day_iso(target_day)
         self._initialize_daily_tracking_form_if_missing(next_day)
@@ -524,6 +621,7 @@ class FollowupRepository:
             achats = int(row.get("achats", 0) or 0)
             sf = int(row.get("sf", 0) or 0)
             env = int(row.get("env", 0) or 0)
+            # Vente = SI + Achats - SF
             vente_theorique = si + achats - sf + env
             vente_ca = int(ca_map.get(cat, row.get("vente_ca", 0) or 0))
             closed_rows.append(
@@ -543,7 +641,7 @@ class FollowupRepository:
         next_day = self._next_day_iso(target_day)
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT COUNT(1) AS n FROM analyse_journaliere_categories WHERE jour = ?",
+                "SELECT COUNT(1) AS n FROM Tcollecte WHERE jour = ?",
                 (next_day,),
             ).fetchone()
             if int(row["n"] or 0) > 0:
@@ -587,19 +685,19 @@ class FollowupRepository:
                 """
                 WITH cats AS (
                     SELECT DISTINCT c.nom AS categorie
-                    FROM analyse_journaliere_categories a
+                    FROM Tcollecte a
                     INNER JOIN categories c ON c.id = a.categorie_id
                     WHERE a.jour BETWEEN ? AND ?
                 ),
                 deb AS (
                     SELECT c.nom AS categorie, a.si AS si
-                    FROM analyse_journaliere_categories a
+                    FROM Tcollecte a
                     INNER JOIN categories c ON c.id = a.categorie_id
                     WHERE a.jour = ?
                 ),
                 fin AS (
                     SELECT c.nom AS categorie, a.sf AS sf
-                    FROM analyse_journaliere_categories a
+                    FROM Tcollecte a
                     INNER JOIN categories c ON c.id = a.categorie_id
                     WHERE a.jour = ?
                 ),
@@ -608,7 +706,7 @@ class FollowupRepository:
                         c.nom AS categorie,
                         SUM(a.achats) AS achats,
                         SUM(a.ca) AS ca
-                    FROM analyse_journaliere_categories a
+                    FROM Tcollecte a
                     INNER JOIN categories c ON c.id = a.categorie_id
                     WHERE a.jour BETWEEN ? AND ?
                     GROUP BY c.nom

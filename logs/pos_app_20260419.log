@@ -1,0 +1,221 @@
+2026-04-19 20:37:19 | INFO     | root                           | Log file: C:\Users\nak\Documents\Projet\POS-APP\logs\pos_app_20260419.log
+2026-04-19 20:37:19 | INFO     | root                           | === POS Application Starting ===
+2026-04-19 20:37:19 | INFO     | root                           | Python: 3.14.4 (tags/v3.14.4:23116f9, Apr  7 2026, 14:10:54) [MSC v.1944 64 bit (AMD64)]
+2026-04-19 20:37:19 | INFO     | root                           | Platform: win32
+2026-04-19 20:37:21 | INFO     | controllers.main_controller    | Session opened for Caissier 1 (role: caissier) - operateur_id: 53, session_id: 190
+2026-04-19 20:37:21 | INFO     | core.database.product_repository | Found 0 promo products
+2026-04-19 20:37:21 | INFO     | core.database.product_repository | Found 30 products near DLV within 30 days
+2026-04-19 20:37:21 | INFO     | core.database.product_repository | Found 2 products with passed DLV to remove
+2026-04-19 20:37:21 | DEBUG    | controllers.main_controller    | Header data refreshed: 0 transactions, 0 promo, 30 near DLV, 2 to remove
+2026-04-19 20:37:21 | DEBUG    | controllers.main_controller    | Product loader thread started
+2026-04-19 20:37:21 | INFO     | root                           | === Main Window Shown ===
+2026-04-19 20:37:21 | DEBUG    | controllers.main_controller    | Products loaded: 418 items
+2026-04-19 20:37:26 | INFO     | core.database.product_repository | Found 0 promo products
+2026-04-19 20:37:26 | INFO     | core.database.product_repository | Found 30 products near DLV within 30 days
+2026-04-19 20:37:26 | INFO     | core.database.product_repository | Found 2 products with passed DLV to remove
+2026-04-19 20:37:26 | DEBUG    | controllers.main_controller    | Header data refreshed: 0 transactions, 0 promo, 30 near DLV, 2 to remove
+2026-04-19 20:37:26 | DEBUG    | controllers.main_controller    | Totals for 2026-04-19: depenses=0, ventes=0, caisse=0
+2026-04-19 20:37:41 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:37:43 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:37:53 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:37:56 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:38:00 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:38:03 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:38:05 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:38:24 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:38:25 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:38:36 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:38:37 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:38:47 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:38:48 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:39:12 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:39:13 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:39:26 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:39:28 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:39:47 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:39:49 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:39:50 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:39:51 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:40:03 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:40:04 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:40:11 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:40:13 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:40:21 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:40:22 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:40:30 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:40:32 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:40:40 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:40:42 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:41:09 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:41:10 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:41:18 | DEBUG    | controllers.main_controller    | [DEBUG] record_sales called with 16 rows
+2026-04-19 20:41:18 | DEBUG    | controllers.main_controller    | Totals for 2026-04-19: depenses=0, ventes=104 200, caisse=104 200
+2026-04-19 20:41:18 | INFO     | core.database.product_repository | Found 0 promo products
+2026-04-19 20:41:18 | INFO     | core.database.product_repository | Found 30 products near DLV within 30 days
+2026-04-19 20:41:18 | INFO     | core.database.product_repository | Found 2 products with passed DLV to remove
+2026-04-19 20:41:18 | DEBUG    | controllers.main_controller    | Header data refreshed: 16 transactions, 0 promo, 30 near DLV, 2 to remove
+2026-04-19 20:41:18 | DEBUG    | controllers.main_controller    | Product loader thread started
+2026-04-19 20:41:18 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:41:18 | DEBUG    | controllers.main_controller    | Totals for 2026-04-19: depenses=0, ventes=104 200, caisse=104 200
+2026-04-19 20:41:18 | INFO     | core.database.product_repository | Found 0 promo products
+2026-04-19 20:41:18 | INFO     | core.database.product_repository | Found 30 products near DLV within 30 days
+2026-04-19 20:41:18 | INFO     | core.database.product_repository | Found 2 products with passed DLV to remove
+2026-04-19 20:41:18 | DEBUG    | controllers.main_controller    | Header data refreshed: 16 transactions, 0 promo, 30 near DLV, 2 to remove
+2026-04-19 20:41:18 | DEBUG    | controllers.main_controller    | Product loader thread started
+2026-04-19 20:41:18 | DEBUG    | controllers.main_controller    | Products loaded: 418 items
+2026-04-19 20:41:18 | DEBUG    | controllers.main_controller    | Products loaded: 418 items
+2026-04-19 20:41:18 | DEBUG    | controllers.main_controller    | Totals for 2026-04-19: depenses=0, ventes=104 200, caisse=104 200
+2026-04-19 20:41:19 | DEBUG    | controllers.main_controller    | Totals for 2026-04-19: depenses=0, ventes=104 200, caisse=104 200
+2026-04-19 20:41:32 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:41:35 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:41:53 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:41:55 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:42:03 | DEBUG    | controllers.main_controller    | [DEBUG] record_sales called with 2 rows
+2026-04-19 20:42:03 | DEBUG    | controllers.main_controller    | Totals for 2026-04-19: depenses=0, ventes=123 700, caisse=123 700
+2026-04-19 20:42:03 | INFO     | core.database.product_repository | Found 0 promo products
+2026-04-19 20:42:03 | INFO     | core.database.product_repository | Found 30 products near DLV within 30 days
+2026-04-19 20:42:03 | INFO     | core.database.product_repository | Found 2 products with passed DLV to remove
+2026-04-19 20:42:03 | DEBUG    | controllers.main_controller    | Header data refreshed: 18 transactions, 0 promo, 30 near DLV, 2 to remove
+2026-04-19 20:42:03 | DEBUG    | controllers.main_controller    | Product loader thread started
+2026-04-19 20:42:03 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:42:03 | DEBUG    | controllers.main_controller    | Totals for 2026-04-19: depenses=0, ventes=123 700, caisse=123 700
+2026-04-19 20:42:03 | INFO     | core.database.product_repository | Found 0 promo products
+2026-04-19 20:42:03 | INFO     | core.database.product_repository | Found 30 products near DLV within 30 days
+2026-04-19 20:42:03 | INFO     | core.database.product_repository | Found 2 products with passed DLV to remove
+2026-04-19 20:42:03 | DEBUG    | controllers.main_controller    | Header data refreshed: 18 transactions, 0 promo, 30 near DLV, 2 to remove
+2026-04-19 20:42:03 | DEBUG    | controllers.main_controller    | Product loader thread started
+2026-04-19 20:42:03 | DEBUG    | controllers.main_controller    | Products loaded: 418 items
+2026-04-19 20:42:03 | DEBUG    | controllers.main_controller    | Products loaded: 418 items
+2026-04-19 20:42:03 | DEBUG    | controllers.main_controller    | Totals for 2026-04-19: depenses=0, ventes=123 700, caisse=123 700
+2026-04-19 20:42:03 | DEBUG    | controllers.main_controller    | Totals for 2026-04-19: depenses=0, ventes=123 700, caisse=123 700
+2026-04-19 20:42:14 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:42:15 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:42:42 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:42:44 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:42:46 | DEBUG    | controllers.main_controller    | [DEBUG] record_sales called with 2 rows
+2026-04-19 20:42:46 | DEBUG    | controllers.main_controller    | Totals for 2026-04-19: depenses=0, ventes=129 700, caisse=129 700
+2026-04-19 20:42:46 | INFO     | core.database.product_repository | Found 0 promo products
+2026-04-19 20:42:46 | INFO     | core.database.product_repository | Found 30 products near DLV within 30 days
+2026-04-19 20:42:46 | INFO     | core.database.product_repository | Found 2 products with passed DLV to remove
+2026-04-19 20:42:46 | DEBUG    | controllers.main_controller    | Header data refreshed: 20 transactions, 0 promo, 30 near DLV, 2 to remove
+2026-04-19 20:42:46 | DEBUG    | controllers.main_controller    | Product loader thread started
+2026-04-19 20:42:46 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:42:46 | DEBUG    | controllers.main_controller    | Totals for 2026-04-19: depenses=0, ventes=129 700, caisse=129 700
+2026-04-19 20:42:46 | INFO     | core.database.product_repository | Found 0 promo products
+2026-04-19 20:42:46 | INFO     | core.database.product_repository | Found 30 products near DLV within 30 days
+2026-04-19 20:42:46 | INFO     | core.database.product_repository | Found 2 products with passed DLV to remove
+2026-04-19 20:42:46 | DEBUG    | controllers.main_controller    | Header data refreshed: 20 transactions, 0 promo, 30 near DLV, 2 to remove
+2026-04-19 20:42:46 | DEBUG    | controllers.main_controller    | Product loader thread started
+2026-04-19 20:42:47 | DEBUG    | controllers.main_controller    | Products loaded: 418 items
+2026-04-19 20:42:47 | DEBUG    | controllers.main_controller    | Products loaded: 418 items
+2026-04-19 20:42:47 | DEBUG    | controllers.main_controller    | Totals for 2026-04-19: depenses=0, ventes=129 700, caisse=129 700
+2026-04-19 20:42:47 | DEBUG    | controllers.main_controller    | Totals for 2026-04-19: depenses=0, ventes=129 700, caisse=129 700
+2026-04-19 20:42:54 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:42:58 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:43:07 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:43:09 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:43:15 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:43:17 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:43:33 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:43:34 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:43:42 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:43:43 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:43:49 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:43:53 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:43:55 | DEBUG    | controllers.main_controller    | [DEBUG] record_sales called with 6 rows
+2026-04-19 20:43:55 | DEBUG    | controllers.main_controller    | Totals for 2026-04-19: depenses=0, ventes=192 200, caisse=192 200
+2026-04-19 20:43:55 | INFO     | core.database.product_repository | Found 0 promo products
+2026-04-19 20:43:55 | INFO     | core.database.product_repository | Found 30 products near DLV within 30 days
+2026-04-19 20:43:55 | INFO     | core.database.product_repository | Found 2 products with passed DLV to remove
+2026-04-19 20:43:55 | DEBUG    | controllers.main_controller    | Header data refreshed: 26 transactions, 0 promo, 30 near DLV, 2 to remove
+2026-04-19 20:43:55 | DEBUG    | controllers.main_controller    | Product loader thread started
+2026-04-19 20:43:55 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:43:55 | DEBUG    | controllers.main_controller    | Totals for 2026-04-19: depenses=0, ventes=192 200, caisse=192 200
+2026-04-19 20:43:55 | INFO     | core.database.product_repository | Found 0 promo products
+2026-04-19 20:43:55 | INFO     | core.database.product_repository | Found 30 products near DLV within 30 days
+2026-04-19 20:43:55 | INFO     | core.database.product_repository | Found 2 products with passed DLV to remove
+2026-04-19 20:43:55 | DEBUG    | controllers.main_controller    | Header data refreshed: 26 transactions, 0 promo, 30 near DLV, 2 to remove
+2026-04-19 20:43:55 | DEBUG    | controllers.main_controller    | Product loader thread started
+2026-04-19 20:43:55 | DEBUG    | controllers.main_controller    | Products loaded: 418 items
+2026-04-19 20:43:56 | DEBUG    | controllers.main_controller    | Products loaded: 418 items
+2026-04-19 20:43:56 | DEBUG    | controllers.main_controller    | Totals for 2026-04-19: depenses=0, ventes=192 200, caisse=192 200
+2026-04-19 20:43:56 | DEBUG    | controllers.main_controller    | Totals for 2026-04-19: depenses=0, ventes=192 200, caisse=192 200
+2026-04-19 20:44:03 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:44:04 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:44:15 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:44:17 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:44:27 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:44:30 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:44:43 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:44:44 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:44:59 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:45:01 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:45:08 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:45:10 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:45:19 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:45:20 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:45:25 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:45:27 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:45:34 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:45:35 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:45:47 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:45:50 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:46:41 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:46:43 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:48:06 | DEBUG    | controllers.main_controller    | [DEBUG] record_sales called with 11 rows
+2026-04-19 20:48:06 | DEBUG    | controllers.main_controller    | Totals for 2026-04-19: depenses=0, ventes=241 200, caisse=241 200
+2026-04-19 20:48:06 | INFO     | core.database.product_repository | Found 0 promo products
+2026-04-19 20:48:06 | INFO     | core.database.product_repository | Found 30 products near DLV within 30 days
+2026-04-19 20:48:06 | INFO     | core.database.product_repository | Found 2 products with passed DLV to remove
+2026-04-19 20:48:06 | DEBUG    | controllers.main_controller    | Header data refreshed: 37 transactions, 0 promo, 30 near DLV, 2 to remove
+2026-04-19 20:48:06 | DEBUG    | controllers.main_controller    | Product loader thread started
+2026-04-19 20:48:06 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:48:06 | DEBUG    | controllers.main_controller    | Totals for 2026-04-19: depenses=0, ventes=241 200, caisse=241 200
+2026-04-19 20:48:06 | INFO     | core.database.product_repository | Found 0 promo products
+2026-04-19 20:48:06 | INFO     | core.database.product_repository | Found 30 products near DLV within 30 days
+2026-04-19 20:48:06 | INFO     | core.database.product_repository | Found 2 products with passed DLV to remove
+2026-04-19 20:48:06 | DEBUG    | controllers.main_controller    | Header data refreshed: 37 transactions, 0 promo, 30 near DLV, 2 to remove
+2026-04-19 20:48:06 | DEBUG    | controllers.main_controller    | Product loader thread started
+2026-04-19 20:48:06 | DEBUG    | controllers.main_controller    | Products loaded: 418 items
+2026-04-19 20:48:06 | DEBUG    | controllers.main_controller    | Products loaded: 418 items
+2026-04-19 20:48:07 | DEBUG    | controllers.main_controller    | Totals for 2026-04-19: depenses=0, ventes=241 200, caisse=241 200
+2026-04-19 20:48:07 | DEBUG    | controllers.main_controller    | Totals for 2026-04-19: depenses=0, ventes=241 200, caisse=241 200
+2026-04-19 20:48:20 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:48:21 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:48:37 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:48:39 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:48:44 | DEBUG    | ui.zone_panier.draft_manager   | Draft set for mode 'vente': True
+2026-04-19 20:48:45 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:48:52 | DEBUG    | controllers.main_controller    | [DEBUG] record_sales called with 3 rows
+2026-04-19 20:48:52 | DEBUG    | controllers.main_controller    | Totals for 2026-04-19: depenses=0, ventes=251 400, caisse=251 400
+2026-04-19 20:48:52 | INFO     | core.database.product_repository | Found 0 promo products
+2026-04-19 20:48:52 | INFO     | core.database.product_repository | Found 30 products near DLV within 30 days
+2026-04-19 20:48:52 | INFO     | core.database.product_repository | Found 2 products with passed DLV to remove
+2026-04-19 20:48:52 | DEBUG    | controllers.main_controller    | Header data refreshed: 40 transactions, 0 promo, 30 near DLV, 2 to remove
+2026-04-19 20:48:52 | DEBUG    | controllers.main_controller    | Product loader thread started
+2026-04-19 20:48:52 | DEBUG    | ui.zone_panier.draft_manager   | Draft cleared for mode 'vente'
+2026-04-19 20:48:52 | DEBUG    | controllers.main_controller    | Totals for 2026-04-19: depenses=0, ventes=251 400, caisse=251 400
+2026-04-19 20:48:52 | INFO     | core.database.product_repository | Found 0 promo products
+2026-04-19 20:48:52 | INFO     | core.database.product_repository | Found 30 products near DLV within 30 days
+2026-04-19 20:48:52 | INFO     | core.database.product_repository | Found 2 products with passed DLV to remove
+2026-04-19 20:48:52 | DEBUG    | controllers.main_controller    | Header data refreshed: 40 transactions, 0 promo, 30 near DLV, 2 to remove
+2026-04-19 20:48:52 | DEBUG    | controllers.main_controller    | Product loader thread started
+2026-04-19 20:48:52 | DEBUG    | controllers.main_controller    | Products loaded: 418 items
+2026-04-19 20:48:52 | DEBUG    | controllers.main_controller    | Products loaded: 418 items
+2026-04-19 20:48:53 | DEBUG    | controllers.main_controller    | Totals for 2026-04-19: depenses=0, ventes=251 400, caisse=251 400
+2026-04-19 20:48:53 | DEBUG    | controllers.main_controller    | Totals for 2026-04-19: depenses=0, ventes=251 400, caisse=251 400
+2026-04-19 20:49:58 | INFO     | services.data_export_service   | Exported to C:\Users\nak\Documents\Projet\backups\autosave_2026-04-19_20260419_204958.json: 418 products, 40 sales, 0 expenses
+2026-04-19 20:49:58 | INFO     | services.autosave_service      | Autosave completed: C:\Users\nak\Documents\Projet\backups\autosave_2026-04-19_20260419_204958.json
+2026-04-19 20:49:58 | INFO     | services.daily_reset_service   | Cloture complete for 2026-04-19, executing daily reset
+2026-04-19 20:49:58 | INFO     | services.daily_reset_service   | Executing daily reset for date: 2026-04-19
+2026-04-19 20:49:58 | INFO     | services.daily_reset_service   | Last closed date set to: 2026-04-19
+2026-04-19 20:49:58 | DEBUG    | services.daily_reset_service   | Reset pending flag set to: False
+2026-04-19 20:49:58 | INFO     | services.daily_reset_service   | Daily reset completed: closed=2026-04-19, coffre was 0, now reset to 0
+2026-04-19 20:49:58 | INFO     | controllers.main_controller    | Daily reset executed after cloture: {'closed_date': '2026-04-19', 'reset_date': '2026-04-19', 'coffre_before': 0, 'coffre_after': 0}
+2026-04-19 20:49:58 | DEBUG    | controllers.main_controller    | Totals for 2026-04-19: depenses=0, ventes=251 400, caisse=251 400
+2026-04-19 20:49:59 | INFO     | services.suivi_journalier_service | Created next day 2026-04-20 with SI from yesterday SF, CA=244900
+2026-04-19 20:50:15 | INFO     | ui.dialogs.daily_sales_report_dialog | Exporter PDF clicked - generating report for 2026-04-19
+2026-04-19 20:50:16 | INFO     | ui.dialogs.daily_sales_report_dialog | PDF generated: C:\Users\nak\Documents\Journalier-2026-04-19.pdf
+2026-04-19 20:50:16 | INFO     | ui.dialogs.daily_sales_report_dialog | PDF opened: C:\Users\nak\Documents\Journalier-2026-04-19.pdf
+2026-04-19 20:50:16 | INFO     | controllers.main_controller    | Session closed: 190
+2026-04-19 20:50:16 | DEBUG    | controllers.main_controller    | Totals for 2026-04-19: depenses=0, ventes=251 400, caisse=251 400

@@ -128,7 +128,7 @@ class SFTableWidget(QWidget):
         self._refresh_table()
 
     def _load_saved_date(self) -> QDate:
-        """Load saved date from settings or return default (1 month ago).
+        """Load saved date from settings or return default (yesterday).
 
         Returns:
             QDate: Saved date or default.
@@ -138,8 +138,8 @@ class SFTableWidget(QWidget):
             date = QDate.fromString(saved, "yyyy-MM-dd")
             if date.isValid():
                 return date
-        # Default: 1 month ago
-        return QDate.currentDate().addMonths(-1)
+        # Default: yesterday (J-1)
+        return QDate.currentDate().addDays(-1)
 
     def _save_date(self, date: QDate) -> None:
         """Save selected date to settings.
@@ -228,13 +228,20 @@ class SFTableWidget(QWidget):
         """Calculate margin percentage from SF data item.
 
         Args:
-            item: Dictionary with 'marge_ttc' and 'vente_theo_ttc' keys.
+            item: Dictionary with 'marge_percent', 'marge_ttc', 'vente_theo_ttc' keys.
 
         Returns:
             Margin percentage as float.
         """
         if item is None:
             return 0.0
+
+        # Use marge_percent from SF report if available
+        marge_pct = float(item.get("marge_percent", 0) or 0)
+        if marge_pct != 0:
+            return marge_pct
+
+        # Fallback: calculate from marge and vente_theo
         marge = float(item.get("marge_ttc", 0) or 0)
         vente_theo = float(item.get("vente_theo_ttc", 0) or 0)
         if vente_theo <= 0:
@@ -258,16 +265,20 @@ class SFTableWidget(QWidget):
         """Get text color based on margin percentage.
 
         Args:
-            pct: Margin percentage.
+            pct: Margin percentage (can be negative).
 
         Returns:
             QColor for text color.
         """
-        if pct < 15:
+        # Negative margin = problem (stock issue, pricing error)
+        if pct < 0:
             return QColor("#fca5a5")  # Red
+        # Positive margin thresholds
+        if pct < 15:
+            return QColor("#fca5a5")  # Red - below target
         if pct < 20:
-            return QColor("#93c5fd")  # Blue
-        return QColor("#86efac")  # Green
+            return QColor("#93c5fd")  # Blue - acceptable
+        return QColor("#86efac")  # Green - good
 
     @staticmethod
     def _item(text: str, bold: bool = False) -> QTableWidgetItem:

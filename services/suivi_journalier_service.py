@@ -88,7 +88,7 @@ class DailyTrackingService:
         self.db_manager.close_day_from_tracking_form(jour)
 
     def create_next_day(self, jour: str, ca_final_value: int) -> str:
-        """Create a new day initialized with the previous day's CA final value.
+        """Create a new day initialized with yesterday's SF as today's SI.
 
         Args:
             jour: The current day (ISO format YYYY-MM-DD).
@@ -111,18 +111,23 @@ class DailyTrackingService:
         else:
             raise ValueError(f"Unable to parse date: {jour}")
 
+        # Get yesterday's SF from Tcollecte (for SI = yesterday's SF)
+        yesterday_sf = self._get_yesterday_sf(jour)
+
         # Get categories from current day
         current_rows = self.get_tracking_rows(jour)
 
-        # Create edits for next day with CA final initialized
+        # Create edits for next day: SI = yesterday's SF, Achats = 0, CA = ca_final_value
         edits = []
         for row in current_rows:
             categorie = str(row.get("categorie", "")).strip()
             if not categorie:
                 continue
+            sf_value = yesterday_sf.get(categorie, 0)
             edits.append(
                 {
                     "categorie": categorie,
+                    "si": sf_value,  # SI = yesterday's SF
                     "achats_ttc": 0,  # New day starts with 0 purchases
                     "ca_final": ca_final_value,  # Initialize with previous day's CA
                 }
@@ -132,6 +137,42 @@ class DailyTrackingService:
             self.db_manager.save_daily_tracking_form_edits(next_day_str, edits)
 
         logger.info(
-            "Created next day %s with CA final initialized to %d", next_day_str, ca_final_value
+            "Created next day %s with SI from yesterday SF, CA=%d",
+            next_day_str,
+            ca_final_value,
         )
         return next_day_str
+
+    def _get_yesterday_sf(self, jour: str) -> dict[str, int]:
+        """Get yesterday's SF values by category.
+
+        Args:
+            jour: Current day (to calculate yesterday).
+
+        Returns:
+            Dictionary mapping category name to SF value.
+        """
+        from datetime import datetime, timedelta
+
+        # Calculate yesterday
+        for fmt in ["%d/%m/%y", "%Y-%m-%d"]:
+            try:
+                current_date = datetime.strptime(jour, fmt)
+                yesterday = current_date - timedelta(days=1)
+                yesterday_str = yesterday.strftime(DATE_FORMAT_DAY)
+                break
+            except ValueError:
+                continue
+
+        # Get SF from Tcollecte
+        with self.db_manager._connect() as conn:
+            rows = conn.execute(
+                """
+                SELECT c.nom, t.sf
+                FROM Tcollecte t
+                JOIN categories c ON t.categorie_id = c.id
+                WHERE t.jour = ?
+                """,
+                (yesterday_str,),
+            ).fetchall()
+            return {str(row[0]): int(row[1] or 0) for row in rows}

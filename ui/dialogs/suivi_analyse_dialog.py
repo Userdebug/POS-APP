@@ -84,11 +84,14 @@ class SuiviAnalyseDialog(QDialog):
         # ==================== Table ====================
         self.table = QTableWidget(0, 3)
         self.table.setHorizontalHeaderLabels(["Cat\u00e9gorie", "CA (Ar)", "Achats (Ar)"])
-        self.table.setStyleSheet(REPORT_TABLE + """
+        self.table.setStyleSheet(
+            REPORT_TABLE
+            + """
             QTableWidget::item {
                 padding: 0px 4px;
             }
-        """)
+        """
+        )
         self.table.setAlternatingRowColors(True)
         self.table.setSizePolicy(QSizePolicy.Policy.Expanding, QSizePolicy.Policy.Expanding)
         self.table.setShowGrid(True)
@@ -206,7 +209,7 @@ class SuiviAnalyseDialog(QDialog):
                     COALESCE(a.achats, 0) AS achats
                 FROM categories c
                 INNER JOIN categories parent ON c.parent_id = parent.id
-                LEFT JOIN analyse_journaliere_categories a 
+                LEFT JOIN Tcollecte a 
                     ON a.categorie_id = c.id AND a.jour = ?
                 WHERE parent.nom = ?
                 ORDER BY c.nom
@@ -369,20 +372,20 @@ class SuiviAnalyseDialog(QDialog):
 
                     categorie_id = cat_id_row["id"]
 
-                    # Check if row exists in analyse_journaliere_categories
+                    # Check if row exists in Tcollecte
                     existing = conn.execute(
-                        "SELECT id FROM analyse_journaliere_categories WHERE jour = ? AND categorie_id = ?",
+                        "SELECT id FROM Tcollecte WHERE jour = ? AND categorie_id = ?",
                         (self._current_date, categorie_id),
                     ).fetchone()
 
                     if existing:
                         conn.execute(
-                            "UPDATE analyse_journaliere_categories SET ca = ?, achats = ? WHERE jour = ? AND categorie_id = ?",
+                            "UPDATE Tcollecte SET ca = ?, achats = ? WHERE jour = ? AND categorie_id = ?",
                             (ca_value, achats_value, self._current_date, categorie_id),
                         )
                     else:
                         conn.execute(
-                            "INSERT INTO analyse_journaliere_categories (jour, categorie_id, ca, achats) VALUES (?, ?, ?, ?)",
+                            "INSERT INTO Tcollecte (jour, categorie_id, ca, achats) VALUES (?, ?, ?, ?)",
                             (self._current_date, categorie_id, ca_value, achats_value),
                         )
                     saved = True

@@ -164,8 +164,16 @@ class ZoneProduits(QWidget):
         return all(term in base_search for term in self.search_text.split())
 
     def _filtered_produits(self):
-        filtered = [p for p in self.produits if self._matches_search(p)]
+        # Filter out products with zero quantity in "vente" mode only
+        # In "achat" (reception) mode, show all products to allow receiving stock
+        filtered = [p for p in self.produits if self._matches_search(p) and self._has_quantity(p)]
         return sorted(filtered, key=self._dlv_sort_key)
+
+    def _has_quantity(self, produit: dict) -> bool:
+        """Check if product has quantity - always true for achat mode."""
+        if self._mode == "achat":
+            return True  # Show all products in reception mode
+        return (int(produit.get("b", 0)) + int(produit.get("r", 0))) > 0
 
     def _dlv_sort_key(self, produit: dict) -> tuple:
         """Sort key for DLV/DLC ordering - nearly expired first, no date last."""

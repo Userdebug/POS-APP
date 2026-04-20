@@ -18,12 +18,12 @@ class TestAchatOperations(unittest.TestCase):
                     id INTEGER PRIMARY KEY,
                     nom TEXT
                 );
-                CREATE TABLE achats (
+                CREATE TABLE Tachats (
                     id INTEGER PRIMARY KEY,
                     fournisseur_id INTEGER,
                     jour TEXT
                 );
-                CREATE TABLE achats_lignes (
+                CREATE TABLE Tachats_lignes (
                     id INTEGER,
                     achat_id INTEGER,
                     produit_id INTEGER,

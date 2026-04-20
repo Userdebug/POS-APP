@@ -57,9 +57,9 @@ class TestSchemaValidation(unittest.TestCase):
             "historique_produits_enleves",
             "clotures_caisse",
             "clotures_caisse_categories",
-            "analyse_journaliere_categories",
-            "achats",
-            "achats_lignes",
+            "Tcollecte",
+            "Tachats",
+            "Tachats_lignes",
             "audit_admin_actions",
             "suivi_journalier_categories",
             "suivi_formulaire_journalier",
@@ -84,7 +84,7 @@ class TestSchemaValidation(unittest.TestCase):
     def test_depenses_valeur_non_negative(self) -> None:
         with self.assertRaises(sqlite3.IntegrityError):
             self.conn.execute(
-                "INSERT INTO depenses (date_depense, designation, valeur) " "VALUES (?, ?, ?)",
+                "INSERT INTO depenses (date_depense, designation, valeur) VALUES (?, ?, ?)",
                 ("2026-01-01", "Test", -1),
             )
 
@@ -124,12 +124,12 @@ class TestSchemaValidation(unittest.TestCase):
             "idx_produits_categorie",
             "idx_mouvements_stock_jour",
             "idx_mouvements_stock_produit",
-            "idx_achats_jour",
-            "idx_achats_lignes_achat",
+            "idx_tachats_jour",
+            "idx_tachats_lignes_achat",
             "idx_historique_enleves_jour",
             "idx_fournisseurs_nom",
             "idx_suivi_journalier_categories_jour",
-            "idx_analyse_journaliere_categories_jour",
+            "idx_tcollecte_jour",
             "idx_ventes_jour_heure",
         }
         rows = self.conn.execute("SELECT name FROM sqlite_master WHERE type='index'").fetchall()
@@ -165,7 +165,7 @@ class TestSchemaValidation(unittest.TestCase):
             ("TestOp", "admin"),
         )
         self.conn.execute(
-            "INSERT INTO sessions_operateur (operateur_id, vendeur_nom) " "VALUES (?, ?)",
+            "INSERT INTO sessions_operateur (operateur_id, vendeur_nom) VALUES (?, ?)",
             (1, "TestVend"),
         )
         self.conn.execute(
@@ -191,7 +191,7 @@ class TestSchemaValidation(unittest.TestCase):
             ("TestOp", "admin"),
         )
         self.conn.execute(
-            "INSERT INTO sessions_operateur (operateur_id, vendeur_nom) " "VALUES (?, ?)",
+            "INSERT INTO sessions_operateur (operateur_id, vendeur_nom) VALUES (?, ?)",
             (1, "TestVend"),
         )
         self.conn.execute(
@@ -209,17 +209,17 @@ class TestSchemaValidation(unittest.TestCase):
                 ("2026-01-01", 1, "INVALID", 1, 0, 10, 9, 0, 0, 1, 1, "Test"),
             )
 
-    def test_achats_lignes_quantite_non_negative(self) -> None:
-        """CHECK constraint: achats_lignes.quantite >= 0."""
+    def test_tachats_lignes_quantite_non_negative(self) -> None:
+        """CHECK constraint: Tachats_lignes.quantite >= 0."""
         # Create prerequisite rows for foreign keys
         self.conn.execute("INSERT INTO fournisseurs (nom) VALUES (?)", ("TestFournisseur",))
-        self.conn.execute("INSERT INTO achats (fournisseur_id) VALUES (?)", (1,))
+        self.conn.execute("INSERT INTO Tachats (fournisseur_id) VALUES (?)", (1,))
         self.conn.execute(
             "INSERT INTO produits (nom, categorie_id) VALUES (?, ?)", ("TestProd", None)
         )
         with self.assertRaises(sqlite3.IntegrityError):
             self.conn.execute(
-                "INSERT INTO achats_lignes "
+                "INSERT INTO Tachats_lignes "
                 "(achat_id, produit_id, quantite, pa_unitaire, "
                 "prc_unitaire, pv_unitaire, total_ttc) "
                 "VALUES (?, ?, ?, ?, ?, ?, ?)",
