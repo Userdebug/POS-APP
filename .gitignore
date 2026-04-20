@@ -1,8 +1,37 @@
-.venv
-.kilo
-.ruff_cache
-AGENTS.md
-database/app.db
-backups/
-docs/old_versions
+# Environnements virtuels
+.venv/
+venv/
+
+# Kilocode et caches
+.kilo/
+.ruff_cache/
+
+# Fichiers système
 gitinfo.txt
+
+# Bases de données et backups
+database/*.db
+database/*.db.backup_
+backups/
+logs/
+
+# Python cache
+__pycache__/
+*.pyc
+*.pyo
+*.pyd
+
+# Tests temporaires
+*.pytest_cache/
+*.coverage
+*.log
+
+# Fichiers temporaires perso
+temp_*.py
+test_*.py
+
+# Documentation ancienne
+docs/old_versions/
+
+# Divers
+AGENTS.md
