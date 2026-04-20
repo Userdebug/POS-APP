@@ -1,6 +1,6 @@
 """Infos produit (haut gauche)."""
 
-from PyQt6.QtCore import QDate, Qt, QTimer, pyqtSignal
+from PyQt6.QtCore import QDate, QSignalBlocker, Qt, QTimer, pyqtSignal
 from PyQt6.QtWidgets import (
     QComboBox,
     QDateEdit,
@@ -36,7 +36,6 @@ class ProduitInfoPanel(QGroupBox):
         self.setObjectName("infoPanel")
         self._produit_actuel: dict | None = None
         self._editing = False
-        self._parent_categories: list[str] = []
         self.setStyleSheet("""
             QGroupBox {
                 border: 1px solid #2a3142;
@@ -57,11 +56,6 @@ class ProduitInfoPanel(QGroupBox):
         layout.setContentsMargins(10, 14, 10, 10)
 
         top = QHBoxLayout()
-        self.btn_parent_categories = QPushButton("Categories parentes")
-        self.btn_parent_categories.setMinimumHeight(30)
-        self.btn_parent_categories.setCursor(Qt.CursorShape.PointingHandCursor)
-        self.btn_parent_categories.clicked.connect(self._show_parent_categories)
-        top.addWidget(self.btn_parent_categories)
         self.btn_edit = QPushButton("Editer")
         self.btn_edit.setMinimumHeight(30)
         self.btn_edit.setEnabled(False)
@@ -70,8 +64,8 @@ class ProduitInfoPanel(QGroupBox):
         self.btn_save.setMinimumHeight(30)
         self.btn_save.setEnabled(False)
         self.btn_save.clicked.connect(self._save_edit)
-        top.addStretch(1)
         top.addWidget(self.btn_edit)
+        top.addStretch(1)
         top.addWidget(self.btn_save)
         layout.addLayout(top)
 
@@ -152,6 +146,11 @@ class ProduitInfoPanel(QGroupBox):
         layout.addLayout(cols)
         layout.addStretch()
 
+        # Build hierarchical category list in combobox
+        self._build_category_combo()
+        # Connect category change signal
+        self.input_categorie.currentIndexChanged.connect(self._on_category_changed)
+
     def update_info(self, produit: dict):
         if not produit:
             self._produit_actuel = None
@@ -176,11 +175,10 @@ class ProduitInfoPanel(QGroupBox):
         self.lbl_prc.setText(f"{format_grouped_int(int(produit.get('prc', round(pa * 1.2))))} Ar")
         self.input_nom.setText(str(produit.get("nom", "")))
         current_category = str(produit.get("categorie", ""))
-        self.input_categorie.clear()
-        self.input_categorie.addItem(current_category)
-        if self._parent_categories and current_category not in self._parent_categories:
-            self.input_categorie.addItems(self._parent_categories)
-        self.input_categorie.setCurrentText(current_category)
+
+        # Find and select the appropriate category in the combobox
+        self._select_category_in_combo(current_category)
+
         dlv_str = str(produit.get("dlv_dlc", ""))
         parsed = parse_expiry_dates(dlv_str)
         if parsed:
@@ -206,6 +204,93 @@ class ProduitInfoPanel(QGroupBox):
             widget.setReadOnly(not editable)
         # For combobox, enabling means setEditable not enabled - we use setEnabled for the dropdown
         self.input_categorie.setEnabled(editable)
+
+    def _build_category_combo(self) -> None:
+        """Populate the category combobox with hierarchical categories (parents + indented children)."""
+        db = DatabaseManager()
+        with db._connect() as conn:
+            rows = conn.execute(
+                "SELECT id, nom, parent_id FROM categories ORDER BY parent_id NULLS FIRST, nom"
+            ).fetchall()
+        categories = []
+        for row in rows:
+            if row[0] is not None:
+                categories.append({"id": row[0], "nom": row[1], "parent_id": row[2]})
+        self.input_categorie.clear()
+        for cat in categories:
+            if cat["parent_id"] is None:
+                self.input_categorie.addItem(cat["nom"], cat)
+            else:
+                # Indent child categories to show hierarchy
+                self.input_categorie.addItem(f"  {cat['nom']}", cat)
+
+    def _select_category_in_combo(self, category_name: str) -> None:
+        """Select the given category name in the combobox, upgrading to parent if it's a subcategory."""
+        if not category_name:
+            return
+        with QSignalBlocker(self.input_categorie):
+            # First try exact match (by data or text)
+            found_idx = -1
+            for i in range(self.input_categorie.count()):
+                data = self.input_categorie.itemData(i)
+                if isinstance(data, dict) and data.get("nom") == category_name:
+                    found_idx = i
+                    break
+                if self.input_categorie.itemText(i).strip() == category_name:
+                    found_idx = i
+                    break
+            if found_idx == -1:
+                # Category not found in list; set as custom text (user can type new ones)
+                self.input_categorie.setCurrentText(category_name)
+                return
+            # Get the category data for the found item
+            cat_data = self.input_categorie.itemData(found_idx)
+            if isinstance(cat_data, dict) and cat_data.get("parent_id") is not None:
+                parent_id = cat_data["parent_id"]
+                # Find parent item
+                parent_idx = -1
+                for j in range(self.input_categorie.count()):
+                    pdata = self.input_categorie.itemData(j)
+                    if isinstance(pdata, dict) and pdata.get("id") == parent_id:
+                        parent_idx = j
+                        break
+                if parent_idx != -1:
+                    self.input_categorie.setCurrentIndex(parent_idx)
+                    return
+            # Parent not found or already parent; select found
+            self.input_categorie.setCurrentIndex(found_idx)
+
+    def _on_category_changed(self) -> None:
+        """Handle user category change: if a subcategory is selected, switch to its parent and update product."""
+        idx = self.input_categorie.currentIndex()
+        if idx < 0:
+            return
+        data = self.input_categorie.itemData(idx)
+        if not data or not isinstance(data, dict):
+            return
+        # If child category, upgrade to parent
+        if data.get("parent_id") is not None:
+            parent_id = data["parent_id"]
+            parent_idx = -1
+            for i in range(self.input_categorie.count()):
+                pdata = self.input_categorie.itemData(i)
+                if isinstance(pdata, dict) and pdata.get("id") == parent_id:
+                    parent_idx = i
+                    break
+            if parent_idx != -1:
+                with QSignalBlocker(self.input_categorie):
+                    self.input_categorie.setCurrentIndex(parent_idx)
+                # Update producto if editing
+                if self._editing and self._produit_actuel:
+                    parent_name = self.input_categorie.itemData(parent_idx)
+                    if isinstance(parent_name, dict):
+                        parent_name = parent_name.get("nom", "")
+                    self._produit_actuel["categorie"] = parent_name
+                    return
+        # If parent selected directly, update produit
+        if self._editing and self._produit_actuel:
+            cat_name = data.get("nom", self.input_categorie.currentText().strip())
+            self._produit_actuel["categorie"] = cat_name
 
     def _start_edit(self):
         if self._produit_actuel is None:
@@ -244,8 +329,8 @@ class ProduitInfoPanel(QGroupBox):
         self.btn_save.setEnabled(False)
         self._set_editable(False)
         self._fill_fields(updated)
-        # Defer signal to allow UI to repaint before handlers run
-        QTimer.singleShot(0, lambda p=dict(updated): self.produit_modifie.emit(p))
+        # Emit directly for instant update
+        self.produit_modifie.emit(dict(updated))
 
     def _toggle_promo(self) -> None:
         """Toggle the en_promo flag, update appearance, and save to database."""
@@ -281,50 +366,3 @@ class ProduitInfoPanel(QGroupBox):
                 "}"
                 "QPushButton:hover { background-color: #4b5563; }"
             )
-
-    def _show_parent_categories(self) -> None:
-        """Load and display parent categories in a dialog."""
-        db = DatabaseManager()
-        query = (
-            "SELECT DISTINCT categorie FROM produits "
-            "WHERE categorie IS NOT NULL AND categorie != '' "
-            "ORDER BY categorie"
-        )
-        rows = db.fetch_all(query)
-        categories = [row[0] for row in rows] if rows else []
-        self._parent_categories = categories
-
-        dialog = QDialog(self)
-        dialog.setWindowTitle("Categories parentes")
-        dialog.setMinimumSize(300, 400)
-        layout = QVBoxLayout(dialog)
-
-        form = QFormLayout()
-        combo = QComboBox()
-        combo.addItems(categories)
-        form.addRow("Choisir une categorie:", combo)
-        layout.addLayout(form)
-
-        buttons = QDialogButtonBox(
-            QDialogButtonBox.StandardButton.Ok | QDialogButtonBox.StandardButton.Cancel
-        )
-        buttons.accepted.connect(lambda: self._select_parent_category(combo.currentText(), dialog))
-        buttons.rejected.connect(dialog.reject)
-        layout.addWidget(buttons)
-
-        dialog.exec()
-
-    def _select_parent_category(self, category: str, dialog: QDialog) -> None:
-        """Apply the selected parent category to the product."""
-        dialog.accept()
-        if category and self._produit_actuel:
-            self._fill_fields_with_category(category)
-
-    def _fill_fields_with_category(self, category: str) -> None:
-        """Fill the category field with the selected value."""
-        self.input_categorie.setCurrentText(category)
-        if self._editing:
-            updated = dict(self._produit_actuel)
-            updated["categorie"] = category
-            self._produit_actuel = updated
-            self._fill_fields(updated)

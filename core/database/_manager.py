@@ -35,6 +35,8 @@ from repositories import (
     SalesRepository,
     SessionsRepository,
 )
+from services.daily_tracking_service import DailyTrackingService
+from repositories.migrations.migrate_tcollecte_2026 import run_migration as run_tcollecte_migration
 
 logger = logging.getLogger(__name__)
 
@@ -110,6 +112,11 @@ class DatabaseManager:
             daily_theoretical_margin_provider=self.get_daily_theoretical_margin_by_category,
             achats_receptions_provider=self.achats.get_purchase_achats_by_category,
             upsert_daily_closure_by_category=self.upsert_daily_closure_by_category,
+        )
+        self.daily_tracking = DailyTrackingService.create(
+            connect=self._connect,
+            today_iso=self._today_iso,
+            day_bounds=self._day_bounds,
         )
 
     @contextmanager
@@ -194,6 +201,11 @@ class DatabaseManager:
             self.auth.ensure_admin_pin_initialized()
             self.auth.migrate_legacy_admin_pin_if_needed()
             migrate_legacy_parameters(self)
+            run_tcollecte_migration(
+                self._connect,
+                self.get_parameter,
+                self.set_parameter,
+            )
         except (OSError, sqlite3.Error) as exc:
             raise RuntimeError(f"initialisation base impossible: {exc}") from exc
 
@@ -438,22 +450,52 @@ class DatabaseManager:
         return self.margins.get_daily_category_collecte(jour)
 
     def get_daily_tracking_by_category(self, day: str | None = None) -> list[dict[str, Any]]:
-        return self.followups.get_daily_tracking_by_category(day)
-
-    def _sync_unclosed_day_metrics(self, day: str) -> None:
-        self.followups._sync_unclosed_day_metrics(day)
+        logger.warning(
+            "get_daily_tracking_by_category is deprecated - use db_manager.daily_tracking"
+        )
+        tracks = self.daily_tracking.get_dashboard_data(day)
+        return [
+            {
+                "jour": t.jour,
+                "categorie": t.category_name,
+                "categorie_id": t.category_id,
+                "si": t.stock_initial,
+                "achats": t.purchases,
+                "sf": t.stock_final,
+                "env": t.removed_value,
+                "ca": t.ca,
+                "ca_live": t.ca_live,
+                "ca_final": t.ca_final,
+                "vente_theorique": t.sales_theoretical,
+                "marge": t.margin,
+                "cloturee": t.is_closed,
+            }
+            for t in tracks
+        ]
 
     def get_daily_tracking_by_category_raw(self, day: str) -> list[dict[str, Any]]:
-        return self.followups.get_daily_tracking_by_category_raw(day)
+        logger.warning(
+            "get_daily_tracking_by_category_raw is deprecated - use db_manager.daily_tracking"
+        )
+        return self.get_daily_tracking_by_category(day)
 
     def _initialize_daily_tracking_if_missing(self, day: str) -> None:
-        self.followups._initialize_daily_tracking_if_missing(day)
+        logger.warning(
+            "_initialize_daily_tracking_if_missing is deprecated - use db_manager.daily_tracking"
+        )
+        self.daily_tracking.get_dashboard_data(day)
 
     def upsert_daily_tracking(self, day: str, rows: list[dict[str, Any]]) -> None:
-        self.followups.upsert_daily_tracking(day, rows)
+        logger.warning("upsert_daily_tracking is deprecated - use db_manager.daily_tracking")
+        if rows:
+            ca_dict = {r.get("categorie"): r.get("ca_final", 0) for r in rows}
+            self.daily_tracking.set_final_ca(day, ca_dict)
 
     def save_daily_tracking_edits(self, day: str, rows: list[dict[str, Any]]) -> None:
-        self.followups.save_daily_tracking_edits(day, rows)
+        logger.warning("save_daily_tracking_edits is deprecated - use db_manager.daily_tracking")
+        if rows:
+            ca_dict = {r.get("categorie"): r.get("ca", 0) for r in rows}
+            self.daily_tracking.set_final_ca(day, ca_dict)
 
     def get_purchase_achats_by_category(self, day: str | None = None) -> list[dict[str, Any]]:
         return self.achats.get_purchase_achats_by_category(day)
@@ -462,10 +504,14 @@ class DatabaseManager:
         return self.achats.list_daily_achats(day)
 
     def _initialize_daily_tracking_form_if_missing(self, day: str) -> None:
-        self.followups._initialize_daily_tracking_form_if_missing(day)
+        logger.warning(
+            "_initialize_daily_tracking_form_if_missing is deprecated - use db_manager.daily_tracking"
+        )
+        self.daily_tracking.get_dashboard_data(day)
 
     def get_daily_tracking_form(self, day: str | None = None) -> list[dict[str, Any]]:
-        return self.followups.get_daily_tracking_form(day)
+        logger.warning("get_daily_tracking_form is deprecated - use db_manager.daily_tracking")
+        return self.get_daily_tracking_by_category(day)
 
     # Alias for backward compatibility
     get_daily_suivi_form = get_daily_tracking_form
@@ -476,24 +522,44 @@ class DatabaseManager:
         rows: list[dict[str, Any]],
         force_admin: bool = False,
     ) -> None:
-        self.followups.save_daily_tracking_form_edits(day, rows, force_admin=force_admin)
+        logger.warning(
+            "save_daily_tracking_form_edits is deprecated - use db_manager.daily_tracking"
+        )
+        self.save_daily_tracking_edits(day, rows)
 
     def close_day_from_tracking_form(self, day: str) -> None:
-        self.followups.close_day_from_tracking_form(day)
+        logger.warning("close_day_from_tracking_form is deprecated - use db_manager.daily_tracking")
+        self.daily_tracking.close_day(day)
 
     def close_day_and_prepare_next(
         self,
         jour: str,
         final_ca_by_category: list[dict[str, Any]],
     ) -> None:
-        self.followups.close_day_and_prepare_next(jour, final_ca_by_category)
+        logger.warning("close_day_and_prepare_next is deprecated - use db_manager.daily_tracking")
+        ca_dict = {r.get("categorie"): r.get("ca", 0) for r in final_ca_by_category}
+        self.daily_tracking.finalize_day(jour, ca_dict)
 
     def get_category_collection_interval(
         self,
         date_debut: str,
         date_fin: str,
     ) -> list[dict[str, Any]]:
-        return self.followups.get_category_collection_interval(date_debut, date_fin)
+        logger.warning(
+            "get_category_collection_interval is deprecated - use db_manager.daily_tracking"
+        )
+        tracks = self.daily_tracking.repo.list_tracks_range(date_debut, date_fin)
+        return [
+            {
+                "jour": t.jour,
+                "categorie": t.category_name,
+                "si": t.stock_initial,
+                "achats": t.purchases,
+                "ca": t.ca,
+                "sf": t.stock_final,
+            }
+            for t in tracks
+        ]
 
     def record_sale(
         self,
@@ -732,7 +798,7 @@ class DatabaseManager:
         stock_boutique_apres: int,
         stock_reserve_avant: int = 0,
         stock_reserve_apres: int = 0,
-        motif: str | None = None,
+        raison: str | None = None,
     ) -> None:
         """Enregistre un mouvement de stock dans la table mouvements_stock.
 
@@ -744,7 +810,7 @@ class DatabaseManager:
             stock_boutique_apres: Stock boutique après mouvement.
             stock_reserve_avant: Stock réserve avant (défaut 0).
             stock_reserve_apres: Stock réserve après (défaut 0).
-            motif: Motif optionnel.
+            raison: Raison optionnelle (ex: 'Vente caisse', 'perime', 'abime').
         """
         from core.constants import DATE_FORMAT_DAY
 
@@ -755,7 +821,7 @@ class DatabaseManager:
                 INSERT INTO mouvements_stock
                 (jour, produit_id, type_mouvement, quantite,
                  stock_boutique_avant, stock_reserve_avant,
-                 stock_boutique_apres, stock_reserve_apres, motif)
+                 stock_boutique_apres, stock_reserve_apres, raison)
                 VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
@@ -767,7 +833,7 @@ class DatabaseManager:
                     stock_reserve_avant,
                     stock_boutique_apres,
                     stock_reserve_apres,
-                    motif,
+                    raison,
                 ),
             )
 

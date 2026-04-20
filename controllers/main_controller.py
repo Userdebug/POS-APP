@@ -16,7 +16,7 @@ from core.database import DatabaseManager
 from core.formatters import format_grouped_int
 from presenters.reports_presenter import ReportsPresenter
 from services.daily_reset_service import DailyResetService
-from services.suivi_journalier_service import DailyTrackingService
+from services.daily_tracking_service import DailyTrackingService
 from ui.main.data_loader_thread import DataLoaderThread
 from viewmodels.dashboard_viewmodel import DashboardViewModel
 from viewmodels.panier_viewmodel import BasketManagerFactory
@@ -61,7 +61,7 @@ class MainController(QObject):
         # Initialize managers and services
         self.db_manager = DatabaseManager()
         self.panier_manager = BasketManagerFactory()
-        self.tracking_service = DailyTrackingService(self.db_manager)
+        self.tracking_service = self.db_manager.daily_tracking
         self.daily_reset_service = DailyResetService(self.db_manager)
         self.dashboard_vm = DashboardViewModel(
             self.db_manager, tracking_service=self.tracking_service
@@ -284,10 +284,7 @@ class MainController(QObject):
             self.reports_presenter.update_live_ca(today)
 
             # Update stock value (SF) for SF table margin display
-            from services.analyse_journaliere_service import AnalyseJournaliereService
-
-            analyse_service = AnalyseJournaliereService(self.db_manager)
-            analyse_service.update_stock_value(today)
+            self.tracking_service.update_stock_metrics(today)
 
             # Emit signal to refresh SF table widget
             self.sf_data_updated.emit(today)
@@ -319,16 +316,10 @@ class MainController(QObject):
 
             # Update purchases (achats) for SF table when invoice is added
             if mode in ("achats", "caisse", "especes"):
-                from services.analyse_journaliere_service import AnalyseJournaliereService
-
-                analyse_service = AnalyseJournaliereService(self.db_manager)
-                analyse_service.update_purchases(today)
+                self.tracking_service.record_purchases(today)
 
             # Update stock value (SF) for SF table margin display
-            from services.analyse_journaliere_service import AnalyseJournaliereService
-
-            analyse_service = AnalyseJournaliereService(self.db_manager)
-            analyse_service.update_stock_value(today)
+            self.tracking_service.update_stock_metrics(today)
 
             # Emit signal to refresh SF table widget
             self.sf_data_updated.emit(today)

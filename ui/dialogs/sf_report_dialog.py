@@ -113,6 +113,9 @@ class SFReportDialog(TableReportDialog):
         date_fin = self.end_date.toString("yyyy-MM-dd")
 
         try:
+            # Refresh Tsf table for this period before getting data
+            self.db_manager.daily_tracking.refresh_tsf(date_debut, date_fin)
+
             data = self.analyse_service.get_sf_report(date_debut, date_fin)
             self._populate_table(data)
             self.data_loaded.emit(data)

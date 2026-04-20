@@ -48,10 +48,7 @@ class ClosureViewModel:
             db_manager: DatabaseManager instance for data access.
         """
         self._db_manager = db_manager
-        # Import here to avoid circular imports
-        from services.suivi_journalier_service import DailyTrackingService
-
-        self._tracking_service = DailyTrackingService(db_manager)
+        self._tracking_service = db_manager.daily_tracking
 
     def get_closure_rows(self, jour: str) -> list[ClosureRow]:
         """Get rows to display in the closure dialog.

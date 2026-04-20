@@ -93,17 +93,10 @@ class EcranMouvements(QWidget):
         target_id = produit.get("id")
         if target_id is None:
             return
-        produits = self.produits_table.get_produits()
-        for i, row in enumerate(produits):
-            if row.get("id") == target_id:
-                produits[i] = dict(produit)
-                self.produits_table.set_produits(produits)
-                self._produit_actif_id = target_id
-                self.produit_info_panel.update_info(produit)
-                self._save_product(produit)
-                # Defer signal emission to prevent UI freeze during cascading updates
-                QTimer.singleShot(0, lambda p=dict(produit): self.produit_modifie.emit(p))
-                return
+        # Use targeted update instead of full table reload
+        self.produits_table.update_produit(produit)
+        self._produit_actif_id = target_id
+        self._save_product(produit)
 
     def _on_action_declenchee(self, data: tuple) -> None:
         action, qte_text = data

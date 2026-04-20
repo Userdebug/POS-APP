@@ -228,38 +228,41 @@ CREATE TABLE IF NOT EXISTS audit_admin_actions (
     new_value TEXT,
     actor TEXT NOT NULL DEFAULT 'admin',
     created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    FOREIGN KEY (categorie_id) REFERENCES categories(id)
-);
+     FOREIGN KEY (categorie_id) REFERENCES categories(id)
+ );
 
-CREATE TABLE IF NOT EXISTS suivi_journalier_categories (
+-- Tsf: materialized reporting table for SF/NFR reports
+CREATE TABLE IF NOT EXISTS Tsf (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     jour TEXT NOT NULL,
-    categorie TEXT NOT NULL,
-    si INTEGER NOT NULL DEFAULT 0,
-    achats INTEGER NOT NULL DEFAULT 0,
-    vente_ca INTEGER NOT NULL DEFAULT 0,
-    sf INTEGER NOT NULL DEFAULT 0,
-    vente_theorique INTEGER NOT NULL DEFAULT 0,
-    marge INTEGER NOT NULL DEFAULT 0,
-    marge_percent REAL,
-    cloturee INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    UNIQUE(jour, categorie)
-);
-
-CREATE TABLE IF NOT EXISTS suivi_formulaire_journalier (
-    id INTEGER PRIMARY KEY AUTOINCREMENT,
-    jour TEXT NOT NULL,
-    categorie TEXT NOT NULL,
+    categorie_id INTEGER NOT NULL,
+    si_ttc INTEGER NOT NULL DEFAULT 0,
     achats_ttc INTEGER NOT NULL DEFAULT 0,
-    ca_final INTEGER NOT NULL DEFAULT 0,
-    cloturee INTEGER NOT NULL DEFAULT 0,
-    created_at TEXT NOT NULL DEFAULT (datetime('now')),
-    updated_at TEXT NOT NULL DEFAULT (datetime('now')),
-    UNIQUE(jour, categorie)
+    ca_ttc INTEGER NOT NULL DEFAULT 0,
+    env_ttc INTEGER NOT NULL DEFAULT 0,
+    sf_ttc INTEGER NOT NULL DEFAULT 0,
+    vente_theorique_ttc INTEGER NOT NULL DEFAULT 0,
+    marge_ttc INTEGER NOT NULL DEFAULT 0,
+    marge_percent REAL NOT NULL DEFAULT 0.0,
+    is_closed INTEGER NOT NULL DEFAULT 0,
+    refreshed_at TEXT NOT NULL DEFAULT (datetime('now')),
+    UNIQUE(jour, categorie_id),
+    FOREIGN KEY (categorie_id) REFERENCES categories(id) ON DELETE CASCADE
 );
 
+CREATE INDEX IF NOT EXISTS idx_tsf_jour ON Tsf(jour);
+CREATE INDEX IF NOT EXISTS idx_tsf_jour_cat ON Tsf(jour, categorie_id);
+CREATE INDEX IF NOT EXISTS idx_tsf_closed ON Tsf(is_closed, jour);
+
+CREATE INDEX IF NOT EXISTS idx_tachats_jour ON Tachats(jour);
+CREATE INDEX IF NOT EXISTS idx_tachats_jour_fournisseur_facture ON Tachats(jour, fournisseur_id, numero_facture);
+CREATE INDEX IF NOT EXISTS idx_tachats_lignes_achat ON Tachats_lignes(achat_id);
+CREATE INDEX IF NOT EXISTS idx_audit_admin_actions_jour ON audit_admin_actions(jour);
+CREATE INDEX IF NOT EXISTS idx_ventes_jour_heure ON ventes(jour, heure);
+CREATE INDEX IF NOT EXISTS idx_depenses_date_id ON depenses(date_depense, id);
+CREATE INDEX IF NOT EXISTS idx_produits_categorie ON produits(categorie_id);
+
+-- Indexes for core operational tables (restored)
 CREATE INDEX IF NOT EXISTS idx_mouvements_stock_jour ON mouvements_stock(jour);
 CREATE INDEX IF NOT EXISTS idx_mouvements_stock_produit ON mouvements_stock(produit_id);
 CREATE INDEX IF NOT EXISTS idx_mouvements_stock_jour_produit ON mouvements_stock(jour, produit_id);
@@ -270,17 +273,10 @@ CREATE INDEX IF NOT EXISTS idx_ventes_session ON ventes(session_id);
 CREATE INDEX IF NOT EXISTS idx_clotures_caisse_jour ON clotures_caisse(jour);
 CREATE INDEX IF NOT EXISTS idx_clotures_caisse_categories_jour ON clotures_caisse_categories(jour);
 CREATE INDEX IF NOT EXISTS idx_fournisseurs_nom ON fournisseurs(nom);
-CREATE INDEX IF NOT EXISTS idx_suivi_journalier_categories_jour ON suivi_journalier_categories(jour);
-CREATE INDEX IF NOT EXISTS idx_suivi_formulaire_journalier_jour ON suivi_formulaire_journalier(jour);
 CREATE INDEX IF NOT EXISTS idx_tcollecte_jour ON Tcollecte(jour);
 CREATE INDEX IF NOT EXISTS idx_tcollecte_cat ON Tcollecte(categorie_id);
-CREATE INDEX IF NOT EXISTS idx_tachats_jour ON Tachats(jour);
-CREATE INDEX IF NOT EXISTS idx_tachats_jour_fournisseur_facture ON Tachats(jour, fournisseur_id, numero_facture);
-CREATE INDEX IF NOT EXISTS idx_tachats_lignes_achat ON Tachats_lignes(achat_id);
-CREATE INDEX IF NOT EXISTS idx_audit_admin_actions_jour ON audit_admin_actions(jour);
-CREATE INDEX IF NOT EXISTS idx_ventes_jour_heure ON ventes(jour, heure);
-CREATE INDEX IF NOT EXISTS idx_depenses_date_id ON depenses(date_depense, id);
-CREATE INDEX IF NOT EXISTS idx_produits_categorie ON produits(categorie_id);
+CREATE INDEX IF NOT EXISTS idx_tcollecte_jour_cat ON Tcollecte(jour, categorie_id);
+CREATE INDEX IF NOT EXISTS idx_tcollecte_open ON Tcollecte(cloturee, jour);
 
 INSERT INTO parametres (cle, valeur, description)
 VALUES ('TVA_TAUX', '20.00', 'Taux de TVA en pourcentage')

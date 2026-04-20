@@ -146,8 +146,7 @@ class AchatRepository:
             with self._connect() as conn:
                 row = conn.execute(
                     """
-                    SELECT id
-                    Tachats
+                    SELECT id FROM Tachats
                     WHERE jour = ? AND fournisseur_id = ? AND COALESCE(numero_facture,'') = COALESCE(?, '')
                     """,
                     (target_day, fid, invoice_number),
@@ -155,7 +154,7 @@ class AchatRepository:
                 if row is None:
                     cur = conn.execute(
                         """
-                        INSERT INTO achats (jour, fournisseur_id, numero_facture, total_ttc, cloturee, updated_at)
+                        INSERT INTO Tachats (jour, fournisseur_id, numero_facture, total_ttc, cloturee, updated_at)
                         VALUES (?, ?, ?, 0, 0, datetime('now'))
                         """,
                         (target_day, fid, invoice_number),
@@ -175,11 +174,11 @@ class AchatRepository:
                 )
                 conn.execute(
                     """
-                    UPDATE achats
+                    UPDATE Tachats
                     SET total_ttc = (
                         SELECT COALESCE(SUM(total_ttc), 0)
-                        TTachats_lignes
-                        WHERE achat_id = achats.id
+                        FROM Tachats_lignes
+                        WHERE achat_id = Tachats.id
                     ),
                     updated_at = datetime('now')
                     WHERE id = ?

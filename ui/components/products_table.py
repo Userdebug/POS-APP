@@ -428,12 +428,19 @@ class ProduitsTable(QGroupBox):
         # Verifie que tous les mots de la recherche sont presents
         return all(term in base_search for term in self._search_text.split())
 
+    def _has_quantity(self, produit: dict) -> bool:
+        """Check if product has quantity (b + r > 0)."""
+        return (int(produit.get("b", 0)) + int(produit.get("r", 0))) > 0
+
     def _filtered_produits(self) -> list[dict]:
         resultat = []
 
         cat_prefix = self._categories_map.get(self._categorie_active)
 
         for produit in self._produits:
+            # Filter out products with zero quantity
+            if not self._has_quantity(produit):
+                continue
             categorie = produit.get("categorie", "Sans categorie")
             if cat_prefix and not categorie.startswith(cat_prefix):
                 continue

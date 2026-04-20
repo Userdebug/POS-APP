@@ -3,7 +3,7 @@
 from dataclasses import dataclass
 
 from core.database import DatabaseManager
-from services.suivi_journalier_service import DailyTrackingService
+from services.daily_tracking_service import DailyTrackingService
 
 
 @dataclass

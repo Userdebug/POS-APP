@@ -399,9 +399,6 @@ class ReportsPresenter:
             jour: Date in ISO format (YYYY-MM-DD).
         """
         try:
-            from services.analyse_journaliere_service import AnalyseJournaliereService
-
-            analyse_service = AnalyseJournaliereService(self._db_manager)
-            analyse_service.update_temporary_ca(jour)
+            self._db_manager.daily_tracking.sync_unclosed_day(jour)
         except Exception as exc:
             logger.warning("Failed to update live CA for %s: %s", jour, exc)
