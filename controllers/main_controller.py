@@ -68,6 +68,9 @@ class MainController(QObject):
         )
         self.reports_presenter = ReportsPresenter(self.db_manager)
 
+        # Initialize Tsf on app start - refresh from last closed day to today
+        self._initialize_tsf()
+
         # Session tracking
         self.operateur_id: int | None = None
         self.session_id: int | None = None
@@ -102,6 +105,28 @@ class MainController(QObject):
         if mode is not None:
             self.db_manager.set_parameter("APP_MODE", mode)
             logger.debug("App state updated: mode=%s", mode)
+
+    def _initialize_tsf(self) -> None:
+        """Initialize Tsf table on app start.
+
+        Rebuilds Tsf from earliest available data to today to ensure fresh data.
+        """
+        try:
+            today = self.tracking_service._repo._today_iso()
+
+            # Find earliest available date in Tcollecte
+            with self.tracking_service._repo._connect() as conn:
+                earliest = conn.execute("SELECT MIN(jour) FROM Tcollecte").fetchone()[0]
+
+            if earliest:
+                start_date = earliest
+            else:
+                start_date = today
+
+            self.tracking_service.refresh_tsf(start_date, today)
+            logger.info(f"Tsf initialized for period: {start_date} to {today}")
+        except Exception as e:
+            logger.warning(f"Failed to initialize Tsf on startup: {e}")
 
     # ==================== Session Management ====================
 

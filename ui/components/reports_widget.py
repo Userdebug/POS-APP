@@ -398,6 +398,8 @@ class ReportsWidget(QWidget):
             logger.info("Sale %s deleted by admin", vente_id)
             if self._current_jour:
                 self._update_ventes_jour_report(self._current_jour)
+                # Recompute live CA and refresh Tsf to reflect deletion
+                self.db_manager.daily_tracking.sync_unclosed_day(self._current_jour)
         else:
             logger.warning("Failed to delete sale %s", vente_id)
 

@@ -33,141 +33,6 @@ class DailyOperations:
         self._current_month_iso = current_month_iso_fn
         self._get_tax = get_tax_fn
 
-    def get_daily_category_evolution(self, jour: str | None = None) -> list[dict[str, Any]]:
-        target_day = jour or self._today_iso()
-        day_start, day_end = self._day_bounds(target_day)
-        with self._connect() as conn:
-            rows = conn.execute(
-                """
-                WITH base AS (
-                    SELECT
-                        p.id AS produit_id,
-                        COALESCE(c.nom, 'Sans categorie') AS categorie,
-                        (p.stock_boutique + p.stock_reserve) AS stock_sf
-                    FROM produits p
-                    LEFT JOIN categories c ON c.id = p.categorie_id
-                ),
-                day_mouv AS (
-                    SELECT
-                        ms.produit_id,
-                        SUM(CASE WHEN ms.type_mouvement IN ('EB', 'ER') THEN ms.quantite ELSE 0 END) AS achats,
-                        MIN(ms.id) AS first_id
-                    FROM mouvements_stock ms
-                    WHERE ms.jour >= ? AND ms.jour < ?
-                    GROUP BY ms.produit_id
-                ),
-                first_stock AS (
-                    SELECT
-                        ms.produit_id,
-                        (ms.stock_boutique_avant + ms.stock_reserve_avant) AS stock_si
-                    FROM mouvements_stock ms
-                    INNER JOIN day_mouv dm ON dm.first_id = ms.id
-                )
-                SELECT
-                    b.categorie,
-                    SUM(
-                        COALESCE(
-                            fs.stock_si,
-                            b.stock_sf - COALESCE(dm.achats, 0)
-                        )
-                    ) AS si,
-                    SUM(COALESCE(dm.achats, 0)) AS achats,
-                    SUM(b.stock_sf) AS sf
-                FROM base b
-                LEFT JOIN day_mouv dm ON dm.produit_id = b.produit_id
-                LEFT JOIN first_stock fs ON fs.produit_id = b.produit_id
-                GROUP BY b.categorie
-                ORDER BY b.categorie ASC
-                """,
-                (day_start, day_end),
-            ).fetchall()
-            result: list[dict[str, Any]] = []
-            for row in rows:
-                si = int(row["si"] or 0)
-                achats = int(row["achats"] or 0)
-                sf = int(row["sf"] or 0)
-                ventes_theoriques = si + achats - sf
-                result.append(
-                    {
-                        "categorie": str(row["categorie"]),
-                        "si": si,
-                        "achats": achats,
-                        "ventes_theoriques": ventes_theoriques,
-                        "sf": sf,
-                        "ecart_formule": si + achats - ventes_theoriques - sf,
-                    }
-                )
-            return result
-
-    def get_monthly_nfr_by_category(self, mois: str | None = None) -> list[dict[str, Any]]:
-        """NFR mensuel par categorie: CA TTC / CA HT (base theorique)."""
-        target_month = mois or self._current_month_iso()
-        month_start, month_end = self._month_bounds(target_month)
-        tax_rate = self._get_tax(default=20.0)
-        factor = 1.0 + (float(tax_rate) / 100.0)
-
-        with self._connect() as conn:
-            rows = conn.execute(
-                """
-                WITH day_mouv AS (
-                    SELECT
-                        ms.produit_id,
-                        date(ms.jour) AS jour_key,
-                        SUM(CASE WHEN ms.type_mouvement IN ('EB', 'ER') THEN ms.quantite ELSE 0 END) AS achats,
-                        MIN(ms.id) AS first_id,
-                        MAX(ms.id) AS last_id
-                    FROM mouvements_stock ms
-                    WHERE ms.jour >= ? AND ms.jour < ?
-                    GROUP BY ms.produit_id, date(ms.jour)
-                ),
-                day_stock AS (
-                    SELECT
-                        dm.produit_id,
-                        dm.jour_key,
-                        dm.achats,
-                        (f.stock_boutique_avant + f.stock_reserve_avant) AS si,
-                        (l.stock_boutique_apres + l.stock_reserve_apres) AS sf
-                    FROM day_mouv dm
-                    INNER JOIN mouvements_stock f ON f.id = dm.first_id
-                    INNER JOIN mouvements_stock l ON l.id = dm.last_id
-                ),
-                ventes_prod AS (
-                    SELECT
-                        ds.produit_id,
-                        SUM(
-                            CASE
-                                WHEN (ds.si + ds.achats - ds.sf) > 0 THEN (ds.si + ds.achats - ds.sf)
-                                ELSE 0
-                            END
-                        ) AS qte_ventes
-                    FROM day_stock ds
-                    GROUP BY ds.produit_id
-                )
-                SELECT
-                    COALESCE(c.nom, 'Sans categorie') AS categorie,
-                    SUM(vp.qte_ventes * CAST(ROUND(p.pa * 1.2, 0) AS INTEGER)) AS ca_ttc
-                FROM ventes_prod vp
-                INNER JOIN produits p ON p.id = vp.produit_id
-                LEFT JOIN categories c ON c.id = p.categorie_id
-                GROUP BY COALESCE(c.nom, 'Sans categorie')
-                ORDER BY categorie ASC
-                """,
-                (month_start, month_end),
-            ).fetchall()
-
-            result: list[dict[str, Any]] = []
-            for row in rows:
-                ca_ttc = int(row["ca_ttc"] or 0)
-                ca_ht = int(round(ca_ttc / factor)) if factor > 0 else ca_ttc
-                result.append(
-                    {
-                        "categorie": str(row["categorie"]),
-                        "ca_ttc": ca_ttc,
-                        "ca_ht": ca_ht,
-                    }
-                )
-            return result
-
     def set_daily_closure_revenue(self, day: str, ca_ttc_final: int, note: str = "") -> None:
         with self._connect() as conn:
             conn.execute(
@@ -185,11 +50,14 @@ class DailyOperations:
     def upsert_daily_closure_by_category(self, jour: str, values: list[dict[str, Any]]) -> None:
         with self._connect() as conn:
             # Get valid OW subcategories
-            valid_cats = set(row["nom"] for row in conn.execute("""
+            valid_cats = set(
+                row["nom"]
+                for row in conn.execute("""
                     SELECT c.nom FROM categories c
                     INNER JOIN categories parent ON c.parent_id = parent.id
                     WHERE parent.nom = 'Catégorie 1 - OW (Owners)'
-                    """).fetchall())
+                    """).fetchall()
+            )
 
             conn.execute("DELETE FROM clotures_caisse_categories WHERE jour = ?", (str(jour),))
             for row in values:

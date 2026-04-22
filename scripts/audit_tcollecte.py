@@ -1,9 +1,9 @@
-"""Audit Tcollecte data quality before migration."""
+#!/usr/bin/env python3
+"""Audit Tcollecte data quality."""
 
 import sys
 from pathlib import Path
 
-# Ensure project root is on sys.path (needed for direct script execution)
 project_root = Path(__file__).resolve().parent.parent
 if str(project_root) not in sys.path:
     sys.path.insert(0, str(project_root))
@@ -12,7 +12,6 @@ from core.database import DatabaseManager
 
 
 def main():
-    base = Path(__file__).resolve().parent
     db = DatabaseManager()
 
     print("=" * 60)
@@ -49,13 +48,6 @@ def main():
         """).fetchone()["cnt"]
         print(f"Closed days with CA=0: {closed_no_ca}")
 
-        # Rows with ca_temporaire > 0 but ca = 0 (open days with sales)
-        temp_ca = conn.execute("""
-            SELECT COUNT(*) as cnt FROM Tcollecte
-            WHERE ca = 0 AND ca_temporaire > 0
-        """).fetchone()["cnt"]
-        print(f"Open days with live CA (ca_temporaire>0, ca=0): {temp_ca}")
-
         # Duplicate (jour, categorie_id) pairs?
         dupes = conn.execute("""
             SELECT jour, categorie_id, COUNT(*) as cnt FROM Tcollecte
@@ -83,7 +75,7 @@ def main():
             print(f"\nSample for latest day '{latest}':")
             sample = conn.execute(
                 """
-                SELECT c.nom, t.si, t.achats, t.ca, t.ca_temporaire, t.sf, t.env, t.vente_theorique, t.marge, t.cloturee
+                SELECT c.nom, t.si, t.achats, t.ca, t.sf, t.env, t.vente_theorique, t.marge, t.cloturee
                 FROM Tcollecte t
                 JOIN categories c ON t.categorie_id = c.id
                 WHERE t.jour = ?

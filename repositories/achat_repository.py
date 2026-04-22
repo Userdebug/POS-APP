@@ -33,12 +33,12 @@ class AchatRepository:
         except sqlite3.Error as exc:
             raise RuntimeError(f"echec get_all_suppliers: {exc}") from exc
 
-    def update_supplier(self, supplier: dict[str, Any]) -> None:
-        """Update an existing supplier."""
-        data = dict(supplier or {})
-        supplier_id = data.get("id")
-        if not supplier_id:
-            raise ValueError("Supplier ID is required for update")
+    def _extract_supplier_fields(
+        self, data: dict[str, Any]
+    ) -> tuple[
+        str, str | None, str | None, str | None, str | None, str | None, str | None, str | None
+    ]:
+        """Extract and normalize supplier fields from a data dict."""
         nom = str(data.get("nom", "")).strip()
         code = str(data.get("code", "")).strip() or None
         nif = str(data.get("nif", "")).strip() or None
@@ -47,6 +47,17 @@ class AchatRepository:
         telephone = str(data.get("telephone", "")).strip() or None
         adresse = str(data.get("adresse", "")).strip() or None
         note = str(data.get("note", "")).strip() or None
+        return nom, code, nif, stat, contact, telephone, adresse, note
+
+    def update_supplier(self, supplier: dict[str, Any]) -> None:
+        """Update an existing supplier."""
+        data = dict(supplier or {})
+        supplier_id = data.get("id")
+        if not supplier_id:
+            raise ValueError("Supplier ID is required for update")
+        nom, code, nif, stat, contact, telephone, adresse, note = self._extract_supplier_fields(
+            data
+        )
         try:
             with self._connect() as conn:
                 conn.execute(
@@ -84,21 +95,19 @@ class AchatRepository:
 
     def ensure_supplier(self, supplier: dict[str, Any] | None) -> int:
         data = dict(supplier or {})
-        nom = str(data.get("nom", "")).strip()
+        nom, code, nif, stat, contact, telephone, adresse, note = self._extract_supplier_fields(
+            data
+        )
         if not nom:
             nom = DEFAULT_SUPPLIER_NAME
-        code = str(data.get("code", "")).strip() or None
-        nif = str(data.get("nif", "")).strip() or None
-        stat = str(data.get("stat", "")).strip() or None
-        contact = str(data.get("contact", "")).strip() or None
-        telephone = str(data.get("telephone", "")).strip() or None
-        adresse = str(data.get("adresse", "")).strip() or None
-        note = str(data.get("note", "")).strip() or None
         try:
             with self._connect() as conn:
                 conn.execute(
                     """
-                    INSERT INTO fournisseurs (nom, code, nif, stat, contact, telephone, adresse, note, actif, updated_at)
+                    INSERT INTO fournisseurs (
+                        nom, code, nif, stat, contact,
+                        telephone, adresse, note, actif, updated_at
+                    )
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?, 1, datetime('now'))
                     ON CONFLICT(nom) DO UPDATE SET
                         code = COALESCE(excluded.code, fournisseurs.code),
@@ -147,14 +156,19 @@ class AchatRepository:
                 row = conn.execute(
                     """
                     SELECT id FROM Tachats
-                    WHERE jour = ? AND fournisseur_id = ? AND COALESCE(numero_facture,'') = COALESCE(?, '')
+                    WHERE jour = ?
+                      AND fournisseur_id = ?
+                      AND COALESCE(numero_facture, '') = COALESCE(?, '')
                     """,
                     (target_day, fid, invoice_number),
                 ).fetchone()
                 if row is None:
                     cur = conn.execute(
                         """
-                        INSERT INTO Tachats (jour, fournisseur_id, numero_facture, total_ttc, cloturee, updated_at)
+                        INSERT INTO Tachats (
+                            jour, fournisseur_id, numero_facture,
+                            total_ttc, cloturee, updated_at
+                        )
                         VALUES (?, ?, ?, 0, 0, datetime('now'))
                         """,
                         (target_day, fid, invoice_number),
@@ -166,7 +180,8 @@ class AchatRepository:
                 conn.execute(
                     """
                     INSERT INTO Tachats_lignes (
-                        achat_id, produit_id, quantite, pa_unitaire, prc_unitaire, pv_unitaire, total_ttc
+                        achat_id, produit_id, quantite,
+                        pa_unitaire, prc_unitaire, pv_unitaire, total_ttc
                     )
                     VALUES (?, ?, ?, ?, ?, ?, ?)
                     """,

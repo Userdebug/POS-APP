@@ -257,7 +257,7 @@ class ZoneProduits(QWidget):
             if total_qte < qte_min:
                 item_qte.setForeground(QColor("#dc2626"))
             else:
-                item_qte.setForeground(QColor())
+                item_qte.setForeground(QColor(TOKENS["text_default"]))
 
         # Update col 2 - PV
         pv = int(produit.get("pv", 0))
@@ -266,6 +266,7 @@ class ZoneProduits(QWidget):
         item_pv = self.table.item(row, 2)
         if item_pv:
             item_pv.setText(format_grouped_int(pv))
+            item_pv.setForeground(QColor(TOKENS["text_default"]))
 
         # Update col 3 - DLV/DLC
         dlv_value = str(produit.get("dlv_dlc", ""))
@@ -377,11 +378,14 @@ class ZoneProduits(QWidget):
         item_qte.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
         if total_qte < qte_min:
             item_qte.setForeground(QColor("#dc2626"))
+        else:
+            item_qte.setForeground(QColor(TOKENS["text_default"]))
         self.table.setItem(row, 1, item_qte)
 
         # Col 2 - PV
         item_pv = QTableWidgetItem(format_grouped_int(pv))
         item_pv.setTextAlignment(Qt.AlignmentFlag.AlignRight | Qt.AlignmentFlag.AlignVCenter)
+        item_pv.setForeground(QColor(TOKENS["text_default"]))
         self.table.setItem(row, 2, item_pv)
 
         # Col 3 - DLV/DLC

@@ -93,10 +93,13 @@ class EcranMouvements(QWidget):
         target_id = produit.get("id")
         if target_id is None:
             return
-        # Use targeted update instead of full table reload
+        # Update local products table
         self.produits_table.update_produit(produit)
         self._produit_actif_id = target_id
+        # Persist to database
         self._save_product(produit)
+        # Re-emit for external listeners (e.g., MainWindow to update ZoneProduits)
+        self.produit_modifie.emit(dict(produit))
 
     def _on_action_declenchee(self, data: tuple) -> None:
         action, qte_text = data
@@ -221,25 +224,29 @@ class EcranMouvements(QWidget):
                 )
                 return False
         elif action == "EB":
-            if stock_b < qte:
+            if qte >= 0:
+                pass
+            elif stock_b < abs(qte):
                 QMessageBox.critical(
                     self,
                     "Stock Insuffisant",
                     f"Correction bloquee pour '{nom}'!\n\n"
                     f"Action: {action_label}\n"
-                    f"Quantite a retirer: {qte}\n"
+                    f"Quantite a retirer: {abs(qte)}\n"
                     f"Stock boutique actuel: {stock_b}\n\n"
                     f"Correction impossible: stock boutique insuffisant.",
                 )
                 return False
         elif action == "ER":
-            if stock_r < qte:
+            if qte >= 0:
+                pass
+            elif stock_r < abs(qte):
                 QMessageBox.critical(
                     self,
                     "Stock Insuffisant",
                     f"Correction bloquee pour '{nom}'!\n\n"
                     f"Action: {action_label}\n"
-                    f"Quantite a retirer: {qte}\n"
+                    f"Quantite a retirer: {abs(qte)}\n"
                     f"Stock reserve actuel: {stock_r}\n\n"
                     f"Correction impossible: stock reserve insuffisant.",
                 )
@@ -349,6 +356,9 @@ class EcranMouvements(QWidget):
             session_id=int(self.session_id),
             vendeur_nom=self.vendeur_nom,
         )
+
+        jour = date.today().isoformat()
+        self.db_manager.daily_tracking.sync_unclosed_day(jour)
 
         if action == "ENV":
             self.db_manager.log_removed_product(

@@ -234,7 +234,6 @@ CREATE TABLE IF NOT EXISTS audit_admin_actions (
 -- Tsf: materialized reporting table for SF/NFR reports
 CREATE TABLE IF NOT EXISTS Tsf (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
-    jour TEXT NOT NULL,
     categorie_id INTEGER NOT NULL,
     si_ttc INTEGER NOT NULL DEFAULT 0,
     achats_ttc INTEGER NOT NULL DEFAULT 0,
@@ -244,16 +243,12 @@ CREATE TABLE IF NOT EXISTS Tsf (
     vente_theorique_ttc INTEGER NOT NULL DEFAULT 0,
     marge_ttc INTEGER NOT NULL DEFAULT 0,
     marge_percent REAL NOT NULL DEFAULT 0.0,
-    is_closed INTEGER NOT NULL DEFAULT 0,
     refreshed_at TEXT NOT NULL DEFAULT (datetime('now')),
-    UNIQUE(jour, categorie_id),
+    UNIQUE(categorie_id),
     FOREIGN KEY (categorie_id) REFERENCES categories(id) ON DELETE CASCADE
 );
 
-CREATE INDEX IF NOT EXISTS idx_tsf_jour ON Tsf(jour);
-CREATE INDEX IF NOT EXISTS idx_tsf_jour_cat ON Tsf(jour, categorie_id);
-CREATE INDEX IF NOT EXISTS idx_tsf_closed ON Tsf(is_closed, jour);
-
+CREATE INDEX IF NOT EXISTS idx_tsf_categorie ON Tsf(categorie_id);
 CREATE INDEX IF NOT EXISTS idx_tachats_jour ON Tachats(jour);
 CREATE INDEX IF NOT EXISTS idx_tachats_jour_fournisseur_facture ON Tachats(jour, fournisseur_id, numero_facture);
 CREATE INDEX IF NOT EXISTS idx_tachats_lignes_achat ON Tachats_lignes(achat_id);

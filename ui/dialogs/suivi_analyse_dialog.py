@@ -203,27 +203,38 @@ class SuiviAnalyseDialog(QDialog):
         with self.db_manager._connect() as conn:
             # Get subcategories with existing CA and Achats data
             query = """
-                SELECT 
+                SELECT
                     c.nom AS sous_categorie,
                     COALESCE(a.ca, 0) AS ca_final,
                     COALESCE(a.achats, 0) AS achats
                 FROM categories c
                 INNER JOIN categories parent ON c.parent_id = parent.id
-                LEFT JOIN Tcollecte a 
+                LEFT JOIN Tcollecte a
                     ON a.categorie_id = c.id AND a.jour = ?
                 WHERE parent.nom = ?
                 ORDER BY c.nom
             """
             rows = conn.execute(query, (jour, CATEGORY_1_NAME)).fetchall()
 
+        # DEBUG: Log what we received
+        print(f"[DEBUG SuiviAnalyse] Date: {jour}")
+        print(f"[DEBUG SuiviAnalyse] Raw rows: {[dict(row) for row in rows]}")
+
         # Build map for original data
-        existing_map = {
-            str(row["sous_categorie"]): {
-                "ca_final_ttc": int(row["ca_final"] or 0),
-                "achats_ttc": int(row["achats_ttc"] or 0),
-            }
-            for row in rows
-        }
+        existing_map = {}
+        for row in rows:
+            cat_name = str(row["sous_categorie"])
+            try:
+                ca_val = int(row["ca_final"] or 0)
+                achats_val = int(row["achats"] or 0)  # FIX: was row["achats_ttc"]
+                existing_map[cat_name] = {
+                    "ca_final_ttc": ca_val,
+                    "achats_ttc": achats_val,
+                }
+            except KeyError as e:
+                print(f"[ERROR SuiviAnalyse] KeyError for category '{cat_name}': {e}")
+                print(f"[ERROR SuiviAnalyse] Available keys: {list(row.keys())}")
+                raise
         self._original_data = dict(existing_map)
 
         # Build table data with all categories
@@ -338,9 +349,9 @@ class SuiviAnalyseDialog(QDialog):
         saved = False
         with self.db_manager._connect() as conn:
             for row in range(self.table.rowCount()):
-                cat_item = self.table.item(row, 0)
-                ca_item = self.table.item(row, 1)
-                achats_item = self.table.item(row, 2)
+                cat_item = self.table.item(row, 0)  # Category column (read-only)
+                ca_item = self.table.item(row, 1)  # CA column (editable)
+                achats_item = self.table.item(row, 2)  # Achats column (editable)
 
                 if cat_item is None or ca_item is None or achats_item is None:
                     continue
@@ -368,6 +379,9 @@ class SuiviAnalyseDialog(QDialog):
                     ).fetchone()
 
                     if not cat_id_row:
+                        print(
+                            f"[WARNING SuiviAnalyse] Category '{categorie}' not found in database - skipping row {row}"
+                        )
                         continue
 
                     categorie_id = cat_id_row["id"]
@@ -389,11 +403,19 @@ class SuiviAnalyseDialog(QDialog):
                             (self._current_date, categorie_id, ca_value, achats_value),
                         )
                     saved = True
-                except Exception:
-                    pass
+                except Exception as e:
+                    print(
+                        f"[ERROR SuiviAnalyse] Failed to save row {row} for category '{categorie}': {e}"
+                    )
+                    # Continue with next row instead of silently failing
+                    continue
 
             if saved:
                 conn.commit()
+                # Recompute derived fields (vente_theorique, marge) for the day
+                self.db_manager.daily_tracking.recompute_derived_fields(self._current_date)
+                # Note: Tsf is NOT updated here - it should be refreshed only from SF Report dialog
+                # when user opens period reports
 
         if saved:
             self._edit_mode = False

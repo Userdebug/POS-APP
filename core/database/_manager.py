@@ -36,7 +36,6 @@ from repositories import (
     SessionsRepository,
 )
 from services.daily_tracking_service import DailyTrackingService
-from repositories.migrations.migrate_tcollecte_2026 import run_migration as run_tcollecte_migration
 
 logger = logging.getLogger(__name__)
 
@@ -201,11 +200,6 @@ class DatabaseManager:
             self.auth.ensure_admin_pin_initialized()
             self.auth.migrate_legacy_admin_pin_if_needed()
             migrate_legacy_parameters(self)
-            run_tcollecte_migration(
-                self._connect,
-                self.get_parameter,
-                self.set_parameter,
-            )
         except (OSError, sqlite3.Error) as exc:
             raise RuntimeError(f"initialisation base impossible: {exc}") from exc
 
@@ -414,14 +408,8 @@ class DatabaseManager:
                 LEFT JOIN categories c ON c.id = p.categorie_id
                 GROUP BY COALESCE(c.nom, 'Sans categorie')
                 ORDER BY categorie ASC
-                """).fetchall()
+            """).fetchall()
             return [dict(row) for row in rows]
-
-    def get_daily_category_evolution(self, jour: str | None = None) -> list[dict[str, Any]]:
-        return self.daily_ops.get_daily_category_evolution(jour)
-
-    def get_monthly_nfr_by_category(self, mois: str | None = None) -> list[dict[str, Any]]:
-        return self.daily_ops.get_monthly_nfr_by_category(mois)
 
     def set_daily_closure_revenue(self, day: str, ca_ttc_final: int, note: str = "") -> None:
         self.daily_ops.set_daily_closure_revenue(day, ca_ttc_final, note)
@@ -493,9 +481,44 @@ class DatabaseManager:
 
     def save_daily_tracking_edits(self, day: str, rows: list[dict[str, Any]]) -> None:
         logger.warning("save_daily_tracking_edits is deprecated - use db_manager.daily_tracking")
-        if rows:
-            ca_dict = {r.get("categorie"): r.get("ca", 0) for r in rows}
-            self.daily_tracking.set_final_ca(day, ca_dict)
+        if not rows:
+            return
+
+        ca_dict: dict[str, int] = {}
+        achats_dict: dict[str, int] = {}
+
+        for r in rows:
+            cat = r.get("categorie")
+            if not cat:
+                continue
+            # Accept both 'ca_final' (old) and 'ca' (new) for final CA
+            if "ca_final" in r or "ca" in r:
+                ca_dict[cat] = int(r.get("ca_final", r.get("ca", 0)))
+            # Accept both 'achats_ttc' (old) and 'achats' for purchases
+            if "achats_ttc" in r or "achats" in r:
+                achats_dict[cat] = int(r.get("achats_ttc", r.get("achats", 0)))
+
+        # Update final CA using repository (clears ca_temporaire and recomputes derived)
+        if ca_dict:
+            self.daily_tracking.repo.set_final_ca(day, ca_dict)
+
+        # Update purchases (achats) directly
+        if achats_dict:
+            # Resolve category IDs once
+            cat_id_map = self.daily_tracking.repo._get_category_id_map()
+            with self.daily_tracking.repo._connect() as conn:
+                for cat, val in achats_dict.items():
+                    cat_id = cat_id_map.get(cat)
+                    if cat_id is None:
+                        continue
+                    conn.execute(
+                        "UPDATE Tcollecte SET achats = ?, updated_at = datetime('now') "
+                        "WHERE jour = ? AND categorie_id = ?",
+                        (val, day, cat_id),
+                    )
+                conn.commit()
+            # Recompute derived fields after modifying achats
+            self.daily_tracking.repo._recompute_derived_fields(day)
 
     def get_purchase_achats_by_category(self, day: str | None = None) -> list[dict[str, Any]]:
         return self.achats.get_purchase_achats_by_category(day)
@@ -505,7 +528,8 @@ class DatabaseManager:
 
     def _initialize_daily_tracking_form_if_missing(self, day: str) -> None:
         logger.warning(
-            "_initialize_daily_tracking_form_if_missing is deprecated - use db_manager.daily_tracking"
+            "_initialize_daily_tracking_form_if_missing is deprecated; "
+            "use db_manager.daily_tracking"
         )
         self.daily_tracking.get_dashboard_data(day)
 
@@ -529,7 +553,8 @@ class DatabaseManager:
 
     def close_day_from_tracking_form(self, day: str) -> None:
         logger.warning("close_day_from_tracking_form is deprecated - use db_manager.daily_tracking")
-        self.daily_tracking.close_day(day)
+        # Direct repo close — final CA must be set separately via upsert_daily_closure_by_category
+        self.daily_tracking.repo.close_day(day)
 
     def close_day_and_prepare_next(
         self,

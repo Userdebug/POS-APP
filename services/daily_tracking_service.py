@@ -10,12 +10,12 @@ import logging
 import sqlite3
 from collections.abc import Callable
 from contextlib import AbstractContextManager
-from typing import TYPE_CHECKING, Any, Optional
+from typing import TYPE_CHECKING, Any
 
 if TYPE_CHECKING:
     pass
 
-from repositories.daily_tracking_repository import DailyTrackingRepository, DailyTrack
+from repositories.daily_tracking_repository import DailyTrack, DailyTrackingRepository
 
 logger = logging.getLogger(__name__)
 
@@ -70,42 +70,43 @@ class DailyTrackingService:
         return self._repo.list_tracks(target_day)
 
     def record_sales(self, jour: str, increments: dict[str, int]) -> None:
-        """Record sales increments for a day."""
+        """Record sales increments for a day. Updates Tcollecte.ca_temporaire only."""
         if not increments:
             return
         self._repo.update_live_ca(jour, increments)
-        self._repo.refresh_tsf(jour, jour)
+        # Refresh Tsf for period: last closed day to today (live updates)
+        self._refresh_tsf_for_current_period()
 
     def record_purchases(self, jour: str) -> None:
         """Record purchases for a day from Tachats."""
         self._repo.update_purchases(jour)
-        self._repo.refresh_tsf(jour, jour)
+        # Refresh Tsf for period: last closed day to today
+        self._refresh_tsf_for_current_period()
 
     def update_stock_metrics(self, jour: str) -> None:
         """Update stock metrics (SF, ENV) for a day."""
         self._repo.update_stock_metrics(jour)
-        self._repo.refresh_tsf(jour, jour)
+        # Refresh Tsf for period: last closed day to today
+        self._refresh_tsf_for_current_period()
 
     def set_final_ca(self, jour: str, final_ca: dict[str, int]) -> None:
         """Set final CA for closure."""
         self._repo.set_final_ca(jour, final_ca)
-        self._repo.refresh_tsf(jour, jour)
-
-    def close_day(self, jour: str) -> None:
-        """Mark day as closed."""
-        self._repo.close_day(jour)
-        self._repo.refresh_tsf(jour, jour)
+        # Refresh Tsf for period: last closed day to today
+        self._refresh_tsf_for_current_period()
 
     def finalize_day(self, jour: str, final_ca: dict[str, int]) -> str:
         """Complete closure: set final CA, close day, prepare next day. Returns next_day."""
         next_day = self._repo.finalize_day(jour, final_ca)
-        self._repo.refresh_tsf(jour, next_day)
+        # Refresh Tsf for period: last closed day to today
+        self._refresh_tsf_for_current_period()
         return next_day
 
     def initialize_day(self, jour: str, carry_si_from: str | None = None) -> None:
         """Initialize a day with SI from previous day or current stock."""
         self._repo.initialize_day(jour, carry_si_from)
-        self._repo.refresh_tsf(jour, jour)
+        # Refresh Tsf for period: last closed day to today
+        self._refresh_tsf_for_current_period()
 
     def get_tracks(self, jour: str) -> list[DailyTrack]:
         """Get tracks for a day."""
@@ -135,12 +136,36 @@ class DailyTrackingService:
         """Refresh Tsf table for date range."""
         self._repo.refresh_tsf(start_date, end_date)
 
-    def get_tsf_data(self, start_date: str, end_date: str) -> list[dict[str, Any]]:
-        """Get Tsf data for reports."""
-        return self._repo.get_tsf_range(start_date, end_date)
+    def _refresh_tsf_for_current_period(self) -> None:
+        """Refresh Tsf for current period: earliest available data to today.
+
+        This is called after any data modification to keep Tsf up-to-date.
+        Uses the same logic as app start: start from earliest available data.
+        """
+        try:
+            today = self._repo._today_iso()
+
+            # Find earliest available date in Tcollecte
+            with self._repo._connect() as conn:
+                earliest = conn.execute("SELECT MIN(jour) FROM Tcollecte").fetchone()[0]
+
+            if earliest:
+                self._repo.refresh_tsf(earliest, today)
+            else:
+                self._repo.refresh_tsf(today, today)
+        except Exception:
+            pass  # Silently fail - Tsf is a cache
+
+    def recompute_derived_fields(self, jour: str) -> None:
+        """Recompute vente_theorique and marge for all categories for a day.
+
+        Call this after manually editing Tcollecte fields (ca, achats, si, sf, env)
+        to ensure derived fields stay consistent.
+        """
+        self._repo._recompute_derived_fields(jour)
 
     def compute_temporary_ca(self, jour: str) -> dict[str, int]:
-        """Compute temporary CA from sales for a day."""
+        """Compute temporary CA from sales for a day (using theoretical prc = pa*1.2)."""
         with self._repo._connect() as conn:
             rows = conn.execute(
                 """
@@ -163,10 +188,15 @@ class DailyTrackingService:
         self._repo.update_stock_metrics(jour)
         self._repo.update_purchases(jour)
 
+        # Reset all CA to 0 first to account for deletions/price changes
+        with self._repo._connect() as conn:
+            conn.execute("UPDATE Tcollecte SET ca = 0 WHERE jour = ?", (jour,))
+            conn.commit()
+
         ca_increments = self.compute_temporary_ca(jour)
         if ca_increments:
             self._repo.update_live_ca(jour, ca_increments)
-        self._repo.refresh_tsf(jour, jour)
+        # Tsf is NOT updated here - it's a report cache, updated on-demand
 
     def get_closure_rows(self, jour: str) -> list[dict[str, Any]]:
         """Get rows for closure dialog."""
@@ -194,4 +224,4 @@ class DailyTrackingService:
         final_ca = {r.get("categorie"): r.get("ca_ttc_final", 0) for r in final_ca_rows}
         self._repo.set_final_ca(jour, final_ca)
         self._repo.close_day(jour)
-        self._repo.refresh_tsf(jour, jour)
+        # Tsf is NOT updated here - call refresh_tsf explicitly when needed

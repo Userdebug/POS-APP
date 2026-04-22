@@ -84,7 +84,9 @@ class SalesRepository:
             with self._connect() as conn:
                 conn.execute(
                     """
-                    INSERT INTO ventes (jour, heure, produit_id, produit_nom, quantite, prix_unitaire, prix_total, session_id)
+                    INSERT INTO ventes
+                        (jour, heure, produit_id, produit_nom,
+                         quantite, prix_unitaire, prix_total, session_id)
                     VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                     """,
                     (jour, heure, pid, str(produit_nom), qte, pu, total, int(session_id)),

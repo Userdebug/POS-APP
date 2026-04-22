@@ -1,0 +1,185 @@
+# Project Map - POS Application
+# Auto-generated structure for agent reference
+# UPDATE THIS FILE when files are added, renamed, moved, or new dependencies created
+
+version: "1.0"
+last_updated: "2026-04-21"
+
+# === PROJECT STRUCTURE ===
+directories:
+  core:
+    description: "Core functionality - database, settings, constants, exceptions"
+    files:
+      - core/__init__.py
+      - core/constants.py           # All constants with __all__ export
+      - core/exceptions.py          # POSException base class + custom exceptions
+      - core/formatters.py          # Formatting utilities
+      - core/focus_manager.py
+      - core/suppliers.py
+      - core/database/
+        - _manager.py               # DatabaseManager - CENTRAL singleton, WAL-aware
+        - auth_manager.py
+        - connection_manager.py
+        - daily_operations.py
+        - margin_calculator.py
+        - parameter_manager.py
+        - product_repository.py
+        - schema_initializer.py
+      - core/settings/              # New settings system (auto-upgrades legacy)
+        - __init__.py
+        - financial.py
+        - migration.py
+        - models.py
+        - repository.py
+        - service.py
+      - core/categories/
+        - models.py
+        - repository.py
+        - service.py
+
+  repositories:
+    description: "Data access layer - all SQL queries"
+    files:
+      - repositories/__init__.py
+      - repositories/achat_repository.py
+      - repositories/daily_tracking_repository.py
+      - repositories/expenses_repository.py
+      - repositories/followup_repository.py
+      - repositories/sales_repository.py
+      - repositories/sessions_repository.py
+      - repositories/migrations/
+        - migrate_tcollecte_2026.py
+
+   services:
+     description: "Business logic layer"
+     files:
+       - services/__init__.py
+       - services/analyse_journaliere_service.py
+       - services/autosave_service.py
+       - services/cash_counter_service.py
+       - services/daily_reset_service.py
+       - services/daily_tracking_service.py
+       - services/data_export_service.py
+       - services/data_import_service.py
+       - services/facture_edit_service.py
+       - services/mouvements_service.py
+       - services/panier_transactions_service.py
+       - services/reception_persistence_service.py
+       # services/sales_analytics_service.py — REMOVED (unused)
+       # services/stock_service.py — REMOVED (duplicate logic, unused)
+       - services/suivi_journalier_service.py  # DEPRECATED: use daily_tracking_service instead
+
+  controllers:
+    description: "Application controllers"
+    files:
+      - controllers/__init__.py
+      - controllers/main_controller.py
+      - controllers/panier_selection_controller.py
+
+  viewmodels:
+    description: "MVVM ViewModels"
+    files:
+      - viewmodels/__init__.py
+      - viewmodels/basket_viewmodel.py
+      - viewmodels/closure_viewmodel.py
+      - viewmodels/dashboard_viewmodel.py
+
+  ui:
+    description: "UI layer - PyQt6 widgets"
+    files:
+      - ui/__init__.py
+      - ui/style_constants.py
+      - ui/components/              # Reusable widgets
+        - base_table.py
+        - calculator.py
+        - cash_counter_footer.py
+        - defilling_ticker_widget.py
+        - header_info_widget.py
+        - mouvements_actions_panel.py
+        - mouvements_history_panel.py
+        - panier_table_builder.py
+        - pos_buttons.py
+        - pos_tables.py
+        - product_info_panel.py
+        - products_table.py
+        - quantity_editor.py
+        - reports_widget.py
+        - search_bar.py
+        - sf_table_widget.py
+        - sidebar_panel.py
+      - ui/dialogs/                 # Modal dialogs (30+ files)
+      - ui/main/                    # Main window components
+      - ui/screens/                 # Full screens
+      - ui/zone_actions_etats/
+      - ui/zone_panier/             # Shopping basket zone
+        - basket_container.py
+        - basket_models.py
+        - base_basket_widget.py
+        - draft_manager.py
+        - mode_utils.py
+        - zone_achat.py
+        - zone_vente.py
+      - ui/zone_produits/           # Products zone
+
+  presenters:
+    - presenters/__init__.py
+    - presenters/reports_presenter.py
+
+  styles:
+    - styles/__init__.py
+    - styles/app_stylesheet.py
+    - styles/design_system.py
+    - styles/design_tokens.py
+    - styles/dialog_styles.py
+
+  database:
+    - database/schema.sql
+    - database/init_db.py
+    - database/app.db              # SQLite with WAL
+
+  scripts:
+    - scripts/audit_tcollecte.py
+    - scripts/backup_db.py
+
+  tests:
+    - tests/__init__.py
+    - tests/test_*.py              # 35+ test files
+    - tests/test_integration_*.py  # Integration tests
+
+# === KEY FILES ===
+entry_point: main.py
+main_window: main_window.py
+database_file: database/app.db
+
+# === ARCHITECTURE PATTERNS ===
+patterns:
+  passive_view:
+    controller: controllers/main_controller.py
+    view: main_window.py
+  mvvm:
+    viewmodels: viewmodels/
+  repository:
+    data_access: repositories/
+
+# === CRITICAL IMPORTS ===
+critical_imports:
+  database: "from core.database import DatabaseManager"
+  settings: "from core.settings import SettingsService, get_parameter, set_parameter"
+  constants: "from core.constants import *"
+
+# === DATE HANDLING ===
+date_helpers:
+  location: "core/database/_manager.py:122"
+  functions:
+    - _day_bounds
+    - _month_bounds
+  formats:
+    - "%d/%m/%y"
+    - "%Y-%m-%d"
+
+# === DATABASE RULES ===
+database:
+  root: database/app.db
+  wal_files: "-wal, -shm sidecars must be copied with .db"
+  access: "Always use DatabaseManager, never raw sqlite3.connect"
+  parameters: "Use get_parameter() / set_parameter() - auto-upgrades legacy"

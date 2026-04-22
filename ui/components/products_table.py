@@ -73,6 +73,7 @@ class ProduitsTable(QGroupBox):
         self._category_buttons = []
         self._categories_map: dict[str, str] = {}
         self._button_grid: _CategoryButtonGrid | None = None
+        self._filtered_cache: list[dict] | None = None
 
         self._build_ui()
         self._load_categories_from_db()
@@ -202,10 +203,10 @@ class ProduitsTable(QGroupBox):
         self._produits = [dict(p) for p in (produits or [])]
         self._categorie_active = "Tous"
         self._search_text = ""
+        self._filtered_cache = None
         if hasattr(self, "search_input"):
             self.search_input.clear()
-        self._build_category_buttons()
-        self.refresh()
+        self._refresh_table_full()
 
     def get_produits(self) -> list[dict]:
         return self._produits
@@ -215,21 +216,38 @@ class ProduitsTable(QGroupBox):
 
         Args:
             full_rebuild: If True, force complete table rebuild.
-                         Use sparingly - only when product list changes.
+                         Also invalidates filtered cache.
         """
         self.table.setUpdatesEnabled(False)
         try:
             if full_rebuild:
+                self._filtered_cache = None
                 self._refresh_table_full()
             else:
-                self._refresh_table_incremental()
+                self._incremental_update()
         finally:
             self.table.setUpdatesEnabled(True)
+
+    def _incremental_update(self) -> None:
+        """Optimized refresh using cached filtered products."""
+        filtered = self._get_filtered_produits()
+        current_rows = self.table.rowCount()
+        new_rows = len(filtered)
+
+        while current_rows > new_rows:
+            self.table.removeRow(current_rows - 1)
+            current_rows -= 1
+
+        for row_idx, produit in enumerate(filtered):
+            if row_idx < self.table.rowCount():
+                self._update_table_row(row_idx, produit)
+            else:
+                self._insert_table_row(row_idx, produit)
 
     def _refresh_table_full(self) -> None:
         """Full table rebuild - only call when product list changes."""
         self.table.setRowCount(0)
-        filtered = self._filtered_produits()
+        filtered = self._get_filtered_produits()
         self.table.setRowCount(len(filtered))
         for row_idx, produit in enumerate(filtered):
             self._populate_table_row(row_idx, produit)
@@ -237,17 +255,39 @@ class ProduitsTable(QGroupBox):
     def update_produit(self, produit: dict) -> None:
         """Update a single product row in the table without full refresh."""
         produit_id = produit.get("id")
+        target_id = produit_id
+        try:
+            target_id = int(target_id) if target_id is not None else None
+        except (ValueError, TypeError):
+            return
+        updated_in_list = False
+        for i, row in enumerate(self._produits):
+            row_id = row.get("id")
+            try:
+                row_id = int(row_id) if row_id is not None else None
+            except (ValueError, TypeError):
+                continue
+            if row_id == target_id:
+                self._produits[i] = dict(produit)
+                self._produits[i]["id"] = target_id
+                updated_in_list = True
+                break
+        if not updated_in_list:
+            new_prod = dict(produit)
+            new_prod["id"] = target_id
+            self._produits.append(new_prod)
+        self._filtered_cache = None
         for row in range(self.table.rowCount()):
             item = self.table.item(row, 0)
             if item and item.text() == str(produit_id):
                 self._update_table_row(row, produit)
                 return
-        # If not found, do full refresh
-        self._refresh_table_incremental()
+        self._incremental_update()
 
     def _refresh_table_incremental(self) -> None:
         """Optimized refresh that only updates changed rows."""
-        filtered = self._filtered_produits()
+        self._filtered_cache = None
+        filtered = self._get_filtered_produits()
         current_rows = self.table.rowCount()
         new_rows = len(filtered)
 
@@ -387,11 +427,13 @@ class ProduitsTable(QGroupBox):
         self.table.setCellWidget(row, 10, btn_select)
 
     def _set_category(self, categorie: str) -> None:
+        if self._categorie_active == categorie:
+            return
         self._categorie_active = categorie
+        self._filtered_cache = None
         for btn in self._category_buttons:
             btn.setChecked(btn.text() == categorie)
-        if categorie != "Tous" or self._search_text != "":
-            self.refresh()
+        self._incremental_update()
 
     def _build_category_buttons(self) -> None:
         if not self._button_grid:
@@ -413,11 +455,11 @@ class ProduitsTable(QGroupBox):
 
     def _on_search_changed(self, text: str) -> None:
         """Handle debounced search text from SearchBar."""
-        if text != self._search_text:
-            self._search_text = text
-            if text == "" and self._categorie_active == "Tous":
-                return
-            self.refresh()
+        if text == self._search_text:
+            return
+        self._search_text = text
+        self._filtered_cache = None
+        self._incremental_update()
 
     def _matches_search(self, produit: dict) -> bool:
         if not self._search_text:
@@ -432,7 +474,14 @@ class ProduitsTable(QGroupBox):
         """Check if product has quantity (b + r > 0)."""
         return (int(produit.get("b", 0)) + int(produit.get("r", 0))) > 0
 
+    def _get_filtered_produits(self) -> list[dict]:
+        """Get filtered products with caching to avoid repeated filtering."""
+        if self._filtered_cache is None:
+            self._filtered_cache = self._filtered_produits()
+        return self._filtered_cache
+
     def _filtered_produits(self) -> list[dict]:
+        """Compute filtered products (uncached - called by _get_filtered_produits)."""
         resultat = []
 
         cat_prefix = self._categories_map.get(self._categorie_active)

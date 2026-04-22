@@ -343,7 +343,7 @@ class ZoneVente(BaseBasketZone):
         day = self._target_business_day()
 
         # Ne pas utiliser apply_tracking_collection qui remplit le champ 'ca' (final). Le CA final est saisi manuellement à la clôture.
-        # Le CA temps réel est géré via ca_temporaire par update_live_ca (appelé par le controller après enregistrement des ventes).
+        # Le CA temps réel est géré via update_live_ca (appelé par le controller après enregistrement des ventes) qui met à jour Tcollecte.ca.
 
         if self.db_manager:
             for item in validated_items:

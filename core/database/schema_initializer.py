@@ -58,7 +58,7 @@ class SchemaInitializer:
                 )
 
                 if needs_migration:
-                    # Create new table with correct schema
+                    # Create new table with correct schema (no ca_temporaire)
                     conn.execute("""
                         CREATE TABLE Tcollecte_new (
                             id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -67,7 +67,6 @@ class SchemaInitializer:
                             si INTEGER NOT NULL DEFAULT 0,
                             achats INTEGER NOT NULL DEFAULT 0,
                             ca INTEGER NOT NULL DEFAULT 0,
-                            ca_temporaire INTEGER NOT NULL DEFAULT 0,
                             sf INTEGER NOT NULL DEFAULT 0,
                             env INTEGER NOT NULL DEFAULT 0,
                             vente_theorique INTEGER NOT NULL DEFAULT 0,
@@ -97,7 +96,6 @@ class SchemaInitializer:
                         "si",
                         "achats",
                         "ca",
-                        "ca_temporaire",
                         "sf",
                         "env",
                         "vente_theorique",
@@ -111,29 +109,18 @@ class SchemaInitializer:
                             select_columns.append(old_col)
                         else:
                             select_columns.append(
-                                f"0 AS {new_col}"
-                                if new_col in ["env", "ca_temporaire"]
-                                else f"NULL AS {new_col}"
+                                f"0 AS {new_col}" if new_col == "env" else f"NULL AS {new_col}"
                             )
 
                     conn.execute(f"""
                         INSERT INTO Tcollecte_new
-                        (id, jour, categorie_id, si, achats, ca, ca_temporaire, sf, env, vente_theorique, marge, cloturee, created_at, updated_at)
+                        (id, jour, categorie_id, si, achats, ca, sf, env, vente_theorique, marge, cloturee, created_at, updated_at)
                         SELECT {", ".join(select_columns)}
                         FROM Tcollecte
                     """)
 
                     conn.execute("DROP TABLE Tcollecte")
                     conn.execute("ALTER TABLE Tcollecte_new RENAME TO Tcollecte")
-
-                # Add ca_temporaire column if missing
-                tcollecte_columns_after = {
-                    row[1] for row in conn.execute("PRAGMA table_info(Tcollecte)").fetchall()
-                }
-                if "ca_temporaire" not in tcollecte_columns_after:
-                    conn.execute(
-                        "ALTER TABLE Tcollecte ADD COLUMN ca_temporaire INTEGER NOT NULL DEFAULT 0"
-                    )
 
             # Migration: soft delete for ventes
             # ... existing code unchanged ...
@@ -153,13 +140,15 @@ class SchemaInitializer:
                 schema_sql = schema_path.read_text(encoding="utf-8")
                 conn.executescript(schema_sql)
 
-                # Step 1: Preserve CA from ca_temporaire
-                conn.execute("""
-                    UPDATE Tcollecte
-                    SET ca = ca_temporaire
-                    WHERE ca = 0 AND ca_temporaire > 0
-                """)
-                conn.execute("UPDATE Tcollecte SET ca_temporaire = 0")
+                # Step 1: Preserve CA from ca_temporaire (legacy column)
+                tcols = [r[1] for r in conn.execute("PRAGMA table_info(Tcollecte)").fetchall()]
+                if "ca_temporaire" in tcols:
+                    conn.execute("""
+                        UPDATE Tcollecte
+                        SET ca = ca_temporaire
+                        WHERE ca = 0 AND ca_temporaire > 0
+                    """)
+                    conn.execute("UPDATE Tcollecte SET ca_temporaire = 0")
 
                 # Step 2: Ensure all days have rows for all OW categories
                 days = [
@@ -203,8 +192,8 @@ class SchemaInitializer:
                                 conn.execute(
                                     """
                                     INSERT OR IGNORE INTO Tcollecte
-                                        (jour, categorie_id, si, achats, ca, ca_temporaire, sf, env, vente_theorique, marge, cloturee)
-                                    VALUES (?, ?, 0, 0, 0, 0, 0, 0, 0, 0, 0)
+                                        (jour, categorie_id, si, achats, ca, sf, env, vente_theorique, marge, cloturee)
+                                    VALUES (?, ?, 0, 0, 0, 0, 0, 0, 0, 0)
                                     """,
                                     (jour, cat_id),
                                 )
@@ -240,7 +229,7 @@ class SchemaInitializer:
                 # Step 6: Populate Tsf for all historical dates
                 tcollecte_rows = conn.execute("""
                     SELECT t.jour, t.categorie_id, c.nom AS categorie,
-                           t.si, t.achats, t.ca, t.ca_temporaire, t.env, t.cloturee
+                           t.si, t.achats, t.ca, t.env, t.cloturee
                     FROM Tcollecte t
                     JOIN categories c ON t.categorie_id = c.id
                     ORDER BY t.jour, c.nom
@@ -265,36 +254,34 @@ class SchemaInitializer:
                         si_ttc = int(r["si"] or 0)
                         achats_ttc = int(r["achats"] or 0)
                         env_ttc = int(r["env"] or 0)
-                        ca_ttc = int(r["ca"] if is_closed else r["ca_temporaire"] or 0)
+                        ca_ttc = int(r["ca"] or 0)
                         sf_ttc = sf_map.get(categorie, 0)
                         vente_theo_ttc = max(0, si_ttc + achats_ttc - sf_ttc - env_ttc)
                         marge_ttc = ca_ttc - vente_theo_ttc
                         marge_pct = (
                             (marge_ttc / vente_theo_ttc * 100.0) if vente_theo_ttc > 0 else 0.0
                         )
-                        tsf_inserts.append(
-                            (
-                                jour,
-                                categorie_id,
-                                si_ttc,
-                                achats_ttc,
-                                ca_ttc,
-                                env_ttc,
-                                sf_ttc,
-                                vente_theo_ttc,
-                                marge_ttc,
-                                marge_pct,
-                                int(is_closed),
-                            )
+                    tsf_inserts.append(
+                        (
+                            categorie_id,
+                            si_ttc,
+                            achats_ttc,
+                            ca_ttc,
+                            env_ttc,
+                            sf_ttc,
+                            vente_theo_ttc,
+                            marge_ttc,
+                            marge_pct,
                         )
+                    )
 
                     conn.executemany(
                         """
                         INSERT INTO Tsf (
-                            jour, categorie_id, si_ttc, achats_ttc, ca_ttc, env_ttc,
-                            sf_ttc, vente_theorique_ttc, marge_ttc, marge_percent, is_closed, refreshed_at
-                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
-                        ON CONFLICT(jour, categorie_id) DO UPDATE SET
+                            categorie_id, si_ttc, achats_ttc, ca_ttc, env_ttc,
+                            sf_ttc, vente_theorique_ttc, marge_ttc, marge_percent, refreshed_at
+                        ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, datetime('now'))
+                        ON CONFLICT(categorie_id) DO UPDATE SET
                             si_ttc = excluded.si_ttc,
                             achats_ttc = excluded.achats_ttc,
                             ca_ttc = excluded.ca_ttc,
@@ -303,7 +290,6 @@ class SchemaInitializer:
                             vente_theorique_ttc = excluded.vente_theorique_ttc,
                             marge_ttc = excluded.marge_ttc,
                             marge_percent = excluded.marge_percent,
-                            is_closed = excluded.is_closed,
                             refreshed_at = datetime('now')
                         """,
                         tsf_inserts,
@@ -315,4 +301,69 @@ class SchemaInitializer:
                     (migration_key, "1", "Tcollecte/Tsf migration v2 applied"),
                 )
 
-                conn.commit()
+            # Step 8: Rebuild Tsf to remove jour column if present (new schema: one row per category)
+            tsf_info = conn.execute("PRAGMA table_info(Tsf)").fetchall()
+            tsf_columns = {row["name"] for row in tsf_info}
+            if "jour" in tsf_columns:
+                # Drop old Tsf (data is cache; safe to lose)
+                conn.execute("DROP TABLE IF EXISTS Tsf")
+                # Recreate Tsf with new schema (no jour)
+                conn.execute(
+                    """
+                    CREATE TABLE Tsf (
+                        id INTEGER PRIMARY KEY AUTOINCREMENT,
+                        categorie_id INTEGER NOT NULL,
+                        si_ttc INTEGER NOT NULL DEFAULT 0,
+                        achats_ttc INTEGER NOT NULL DEFAULT 0,
+                        ca_ttc INTEGER NOT NULL DEFAULT 0,
+                        env_ttc INTEGER NOT NULL DEFAULT 0,
+                        sf_ttc INTEGER NOT NULL DEFAULT 0,
+                        vente_theorique_ttc INTEGER NOT NULL DEFAULT 0,
+                        marge_ttc INTEGER NOT NULL DEFAULT 0,
+                        marge_percent REAL NOT NULL DEFAULT 0.0,
+                        refreshed_at TEXT NOT NULL DEFAULT (datetime('now')),
+                        UNIQUE(categorie_id),
+                        FOREIGN KEY (categorie_id) REFERENCES categories(id) ON DELETE CASCADE
+                    )
+                    """
+                )
+                conn.execute("CREATE INDEX IF NOT EXISTS idx_tsf_categorie ON Tsf(categorie_id)")
+                conn.execute(
+                    "INSERT OR REPLACE INTO parametres (cle, valeur, description) VALUES (?, ?, ?)",
+                    (
+                        "TSF_NO_JOUR_MIGRATION",
+                        "1",
+                        "Tsf jour column removed; table now category-aggregated",
+                    ),
+                )
+
+            # Step 9: Add ca_temporaire column to Tcollecte (refactoring for live CA separation)
+            tcollecte_columns = {
+                row[1] for row in conn.execute("PRAGMA table_info(Tcollecte)").fetchall()
+            }
+            if "ca_temporaire" not in tcollecte_columns:
+                conn.execute(
+                    "ALTER TABLE Tcollecte ADD COLUMN ca_temporaire INTEGER NOT NULL DEFAULT 0"
+                )
+                conn.execute(
+                    "INSERT OR REPLACE INTO parametres (cle, valeur, description) VALUES (?, ?, ?)",
+                    (
+                        "TCOLLECTE_CA_TEMPORAIRE_MIGRATION",
+                        "1",
+                        "Added ca_temporaire column to Tcollecte for live CA separation",
+                    ),
+                )
+            else:
+                # Migration for existing data: clear ca_temporaire for closed days
+                # Closed days should only have ca (definitive CA), not ca_temporaire
+                conn.execute(
+                    "UPDATE Tcollecte SET ca_temporaire = 0 WHERE cloturee = 1 AND ca_temporaire > 0"
+                )
+                conn.execute(
+                    "INSERT OR REPLACE INTO parametres (cle, valeur, description) VALUES (?, ?, ?)",
+                    (
+                        "TCOLLECTE_CA_TEMPORAIRE_CLEANUP",
+                        "1",
+                        "Cleared ca_temporaire for closed days",
+                    ),
+                )
