@@ -50,24 +50,24 @@ directories:
       - repositories/migrations/
         - migrate_tcollecte_2026.py
 
-   services:
-     description: "Business logic layer"
-     files:
-       - services/__init__.py
-       - services/analyse_journaliere_service.py
-       - services/autosave_service.py
-       - services/cash_counter_service.py
-       - services/daily_reset_service.py
-       - services/daily_tracking_service.py
-       - services/data_export_service.py
-       - services/data_import_service.py
-       - services/facture_edit_service.py
-       - services/mouvements_service.py
-       - services/panier_transactions_service.py
-       - services/reception_persistence_service.py
-       # services/sales_analytics_service.py — REMOVED (unused)
-       # services/stock_service.py — REMOVED (duplicate logic, unused)
-       - services/suivi_journalier_service.py  # DEPRECATED: use daily_tracking_service instead
+  services:
+    description: "Business logic layer"
+    files:
+      - services/__init__.py
+      - services/analyse_journaliere_service.py
+      - services/autosave_service.py
+      - services/cash_counter_service.py
+      - services/daily_reset_service.py
+      - services/daily_tracking_service.py
+      - services/data_export_service.py
+      - services/data_import_service.py
+      - services/facture_edit_service.py
+      - services/mouvements_service.py
+      - services/panier_transactions_service.py
+      - services/reception_persistence_service.py
+      - services/sales_analytics_service.py
+      - services/stock_service.py
+      - services/suivi_journalier_service.py
 
   controllers:
     description: "Application controllers"

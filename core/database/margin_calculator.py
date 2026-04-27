@@ -64,23 +64,23 @@ class MarginCalculator:
                     WHERE ms.jour >= ? AND ms.jour < ?
                     GROUP BY ms.produit_id
                 ),
-                day_stock AS (
-                    SELECT
-                        p.id AS produit_id,
-                        COALESCE(c.nom, 'Sans categorie') AS categorie,
-                        p.pa,
-                        CAST(ROUND(p.pa * 1.2, 0) AS INTEGER) AS prc,
-                        COALESCE(
-                            (f.stock_boutique_avant + f.stock_reserve_avant),
-                            (p.stock_boutique + p.stock_reserve) - COALESCE(dm.achats, 0)
-                        ) AS si,
-                        COALESCE(dm.achats, 0) AS achats,
-                        (p.stock_boutique + p.stock_reserve) AS sf
-                    FROM produits p
-                    LEFT JOIN categories c ON c.id = p.categorie_id
-                    LEFT JOIN day_mouv dm ON dm.produit_id = p.id
-                    LEFT JOIN mouvements_stock f ON f.id = dm.first_id
-                )
+                 day_stock AS (
+                     SELECT
+                         p.id AS produit_id,
+                         COALESCE(c.nom, 'Sans categorie') AS categorie,
+                         p.pa,
+                         CAST(ROUND(p.pa * 1.2, 0) AS INTEGER) AS prc,
+                         COALESCE(
+                             (f.stock_boutique_avant + f.stock_reserve_avant),
+                             (p.stock_boutique + p.stock_reserve) - COALESCE(dm.achats, 0)
+                         ) AS si,
+                         COALESCE(dm.achats, 0) AS achats,
+                         (p.stock_boutique + p.stock_reserve) AS sf
+                     FROM produits p
+                     LEFT JOIN categories c ON c.id = p.categorie_id
+                     LEFT JOIN day_mouv dm ON dm.produit_id = p.id
+                     LEFT JOIN mouvements_stock f ON f.id = dm.first_id
+                 )
                 SELECT
                     ds.categorie,
                     SUM(

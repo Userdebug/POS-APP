@@ -1,0 +1,17 @@
+# Error Memory - Common issues and their resolution patterns
+# MANDATORY: Update ONLY by Debug Agent after explicit user validation.
+
+version: "1.1"
+last_updated: "2026-04-26"
+
+errors:
+  # === FILE SYSTEM ISSUES ===
+  - id: duplicate_file_issue
+    pattern: modifications not taken into account
+    cause: duplicated file in the project
+    detection:
+      - check for similar filenames
+      - compare file contents
+    solution:
+      - delete the duplicate file
+      - update imports to point to the active file

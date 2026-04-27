@@ -49,7 +49,7 @@ class ReceptionPersistenceService:
             categorie = DEFAULT_CATEGORY_NAME
 
         pa = max(0, int(raw_line.get("pa", 0) or 0))
-        prc = max(0, int(raw_line.get("prc", round(pa * 1.2)) or 0))
+        prc = max(0, int(raw_line.get("prc", pa) or 0))
         pv = max(0, int(raw_line.get("pv", pa) or pa))
         qte = max(1, int(raw_line.get("qte", 1) or 1))
 

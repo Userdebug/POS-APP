@@ -166,7 +166,7 @@ class SalesRepository:
                     f"""
                     SELECT
                         c.nom as categorie,
-                        SUM(v.quantite * CAST(ROUND(p.pa * 1.2, 0) AS INTEGER)) as total_prc
+                        SUM(v.quantite * CASE WHEN c.prc_disabled THEN 0 ELSE CAST(ROUND(p.pa * 1.2, 0) AS INTEGER) END) as total_prc
                     {self._VENTES_PRODUITS_CATEGORIES_JOIN}
                     WHERE v.jour >= ? AND v.jour < ? AND v.deleted = 0 AND {parent_filter}
                     GROUP BY c.nom

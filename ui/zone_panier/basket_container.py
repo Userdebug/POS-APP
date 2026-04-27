@@ -77,6 +77,10 @@ class BasketContainer(QWidget):
 
         self.zone_vente.sales_day_recorded.connect(self.sales_day_recorded.emit)
 
+        # Initial button labels: vente mode shows "Vente" active, achat mode shows "Achats" active
+        self.zone_vente.set_switch_button_text("Vente")
+        self.zone_achat.set_switch_button_text("Achats")
+
     # ==================== Mode Routing ====================
 
     @property

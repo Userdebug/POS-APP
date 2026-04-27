@@ -98,6 +98,13 @@ class ZoneVente(BaseBasketZone):
         self._refresh_buttons_style()
         self.refresh()
 
+    # ==================== Mode Switch Button ====================
+
+    def set_switch_button_text(self, text: str) -> None:
+        """Update the mode switch button text (called by BasketContainer)."""
+        if hasattr(self, "btn_mode_switch"):
+            self.btn_mode_switch.setText(text)
+
     # ==================== Controls ====================
 
     def _build_controls(self) -> QWidget:
@@ -306,21 +313,27 @@ class ZoneVente(BaseBasketZone):
                 try:
                     produit = self.db_manager.get_produit_by_id(produit_id)
                     if produit:
-                        current_stock = int(produit.get("qte_stock", 0))
-                        if quantite > current_stock:
-                            logger.warning(
-                                "Insufficient stock for %s: requested %s, available %s",
-                                produit_id,
-                                quantite,
-                                current_stock,
+                        # Skip stock check for unlimited quantity categories
+                        if not produit.get("quantity_infinite"):
+                            current_stock = int(produit.get("qte_stock", 0))
+                            if quantite > current_stock:
+                                logger.warning(
+                                    "Insufficient stock for %s: requested %s, available %s",
+                                    produit_id,
+                                    quantite,
+                                    current_stock,
+                                )
+                                QMessageBox.warning(
+                                    self,
+                                    "Stock insuffisant",
+                                    f"Stock insuffisant pour '{item.get('nom', 'Inconnu')}'.\n"
+                                    f"Demandé: {quantite}, Disponible: {current_stock}",
+                                )
+                                continue
+                        else:
+                            logger.debug(
+                                "Skipping stock check for unlimited product %s", produit_id
                             )
-                            QMessageBox.warning(
-                                self,
-                                "Stock insuffisant",
-                                f"Stock insuffisant pour '{item.get('nom', 'Inconnu')}'.\n"
-                                f"Demandé: {quantite}, Disponible: {current_stock}",
-                            )
-                            continue
                 except Exception as e:
                     logger.error("Error checking stock for %s: %s", produit_id, e)
 

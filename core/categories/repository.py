@@ -136,6 +136,9 @@ class CategoryRepository:
             id=row["id"],
             nom=row["nom"],
             parent_id=row["parent_id"],
+            pa_equals_pv=bool(row.get("pa_equals_pv", 0)),
+            prc_disabled=bool(row.get("prc_disabled", 0)),
+            quantity_infinite=bool(row.get("quantity_infinite", 0)),
             created_at=row.get("created_at", ""),
             updated_at=row.get("updated_at", ""),
         )

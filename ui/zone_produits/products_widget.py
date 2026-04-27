@@ -170,9 +170,11 @@ class ZoneProduits(QWidget):
         return sorted(filtered, key=self._dlv_sort_key)
 
     def _has_quantity(self, produit: dict) -> bool:
-        """Check if product has quantity - always true for achat mode."""
+        """Check if product has quantity - always true for achat mode or infinite quantity."""
         if self._mode == "achat":
             return True  # Show all products in reception mode
+        if bool(produit.get("quantity_infinite", False)):
+            return True  # Show infinite quantity products regardless of stock
         return (int(produit.get("b", 0)) + int(produit.get("r", 0))) > 0
 
     def _dlv_sort_key(self, produit: dict) -> tuple:

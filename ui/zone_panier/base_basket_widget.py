@@ -490,17 +490,30 @@ class BaseBasketZone(QWidget):
 
     def _show_add_produit_dialog(self) -> None:
         categories: list[tuple[int, str]] = []
+        category_rules: dict[int, dict] = {}
         try:
             if self.db_manager:
                 with self.db_manager._connect() as conn:
                     rows = conn.execute(
-                        "SELECT id, nom FROM categories WHERE parent_id IS NOT NULL ORDER BY nom ASC"
+                        """
+                        SELECT id, nom, pa_equals_pv, prc_disabled, quantity_infinite, dlv_disabled
+                        FROM categories
+                        WHERE parent_id IS NOT NULL
+                        ORDER BY nom ASC
+                        """
                     ).fetchall()
-                    categories = [(row[0], row[1]) for row in rows]
+                    for row in rows:
+                        categories.append((row["id"], row["nom"]))
+                        category_rules[row["id"]] = {
+                            "pa_equals_pv": bool(row["pa_equals_pv"]),
+                            "prc_disabled": bool(row["prc_disabled"]),
+                            "quantity_infinite": bool(row["quantity_infinite"]),
+                            "dlv_disabled": bool(row["dlv_disabled"]),
+                        }
         except Exception as e:
             logger.warning("Could not load categories: %s", e)
 
-        dialog = AddProduitDialog(self, categories=categories)
+        dialog = AddProduitDialog(self, categories=categories, category_rules=category_rules)
         if dialog.exec():
             produit_data = dialog.get_produit()
             try:

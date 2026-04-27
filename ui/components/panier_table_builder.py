@@ -53,11 +53,17 @@ class PanierTableBuilder:
 
     @classmethod
     def _build_facture_row(cls, line: dict[str, Any]) -> FactureRowDescriptor:
+        prc_value = line.get("prc")
+        if prc_value is None:
+            prc_display = "-"
+        else:
+            prc_display = format_grouped_int(int(prc_value))
+
         values = (
             str(line.get("nom", "")),
             str(line.get("categorie", "-")),
             format_grouped_int(line.get("pa", 0)),
-            format_grouped_int(line.get("prc", 0)),
+            prc_display,
             format_grouped_int(line.get("pv", 0)),
             str(line.get("qte", 1)),
             format_grouped_int(cls._line_total(line)),

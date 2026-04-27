@@ -27,8 +27,7 @@ class PanierSelectionController:
             return None
         if has_brouillon:
             return row_count - 1
-        if 0 <= previous_active_row < row_count:
-            return previous_active_row
+        # After validation (no brouillon), always select the last row (newly added line)
         return row_count - 1
 
     @staticmethod

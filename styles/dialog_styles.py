@@ -201,6 +201,7 @@ REPORT_TABLE = f"""
     }}
     QTableWidget::item:selected {{
         background-color: {TOKENS['bg_button_disabled']};
+        color: {TOKENS['text_primary']};
     }}
     QHeaderView::section {{
         background-color: {TOKENS['bg_card']};

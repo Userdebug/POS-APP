@@ -13,6 +13,9 @@ class Category:
     id: int | None = None
     nom: str = ""
     parent_id: int | None = None
+    pa_equals_pv: bool = False
+    prc_disabled: bool = False
+    quantity_infinite: bool = False
     created_at: str = field(default_factory=lambda: datetime.now().isoformat())
     updated_at: str = field(default_factory=lambda: datetime.now().isoformat())
 

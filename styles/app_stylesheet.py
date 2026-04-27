@@ -140,6 +140,10 @@ QTableWidget {
     gridline-color: $border_primary;
     alternate-background-color: transparent;
 }
+QTableWidget::item:selected {
+    background-color: $bg_button_disabled;
+    color: $text_primary;
+}
 QHeaderView::section {
     background-color: transparent;
     color: $text_header;
@@ -162,6 +166,7 @@ QTableWidget#sf_report_table::item {
 }
 QTableWidget#sf_report_table::item:selected {
     background-color: $bg_button_disabled;
+    color: $text_primary;
 }
 QScrollBar:vertical {
     background-color: transparent;

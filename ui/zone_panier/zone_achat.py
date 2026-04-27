@@ -112,6 +112,13 @@ class ZoneAchat(BaseBasketZone):
         self._refresh_combo()
         self.refresh()
 
+    # ==================== Mode Switch Button ====================
+
+    def set_switch_button_text(self, text: str) -> None:
+        """Update the mode switch button text (called by BasketContainer)."""
+        if hasattr(self, "btn_mode_switch"):
+            self.btn_mode_switch.setText(text)
+
     # ==================== Controls ====================
 
     def _build_controls(self) -> QWidget:
@@ -409,7 +416,11 @@ class ZoneAchat(BaseBasketZone):
     def _insert_achat_row(self, row: int, ligne: dict[str, Any], is_brouillon: bool) -> None:
         """Insert achat row at given row index (uses pre-allocated row)."""
         pa = int(ligne.get("pa", ligne.get("prix", 0)))
-        prc = int(ligne.get("prc", 0))
+        prc_raw = ligne.get("prc")
+        if prc_raw is None:
+            prc_display = "-"
+        else:
+            prc_display = format_grouped_int(int(prc_raw))
         pv = int(ligne.get("pv", 0))
         qte = int(ligne.get("qte", 1))
         total = pa * qte
@@ -417,7 +428,7 @@ class ZoneAchat(BaseBasketZone):
         self.table.setItem(row, 0, QTableWidgetItem(str(ligne.get("nom", ""))))
         self.table.setItem(row, 1, QTableWidgetItem(str(ligne.get("categorie", ""))))
         self.table.setItem(row, 2, QTableWidgetItem(format_grouped_int(pa)))
-        self.table.setItem(row, 3, QTableWidgetItem(format_grouped_int(prc)))
+        self.table.setItem(row, 3, QTableWidgetItem(prc_display))
         self.table.setItem(row, 4, QTableWidgetItem(format_grouped_int(pv)))
         self._render_qte_cell(row, qte, is_brouillon)
         self.table.setItem(row, 6, QTableWidgetItem(format_grouped_int(total)))
@@ -530,13 +541,20 @@ class ZoneAchat(BaseBasketZone):
                 item = self.table.item(row, col)
                 if item is not None:
                     item.setText(result.formatted_cell_value)
-            if col == 2 and result.formatted_prc_value is not None:
+            if col == 2:
+                # Determine PRC display value respecting category rule
                 prc_item = self.table.item(row, 3)
                 if prc_item is None:
                     prc_item = QTableWidgetItem()
                     prc_item.setFlags(prc_item.flags() & ~Qt.ItemFlag.ItemIsEditable)
                     self.table.setItem(row, 3, prc_item)
-                prc_item.setText(result.formatted_prc_value)
+                if ligne.get("prc_disabled"):
+                    prc_item.setText("-")
+                elif result.formatted_prc_value is not None:
+                    prc_item.setText(result.formatted_prc_value)
+                else:
+                    # Fallback
+                    prc_item.setText("-")
 
             total_item = self.table.item(row, 6)
             if total_item is None:

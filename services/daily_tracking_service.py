@@ -165,19 +165,19 @@ class DailyTrackingService:
         self._repo._recompute_derived_fields(jour)
 
     def compute_temporary_ca(self, jour: str) -> dict[str, int]:
-        """Compute temporary CA from sales for a day (using theoretical prc = pa*1.2)."""
+        """Compute temporary CA from sales for a day (using theoretical prc = pa*1.2, respecting prc_disabled)."""
         with self._repo._connect() as conn:
             rows = conn.execute(
                 """
                 SELECT c.nom AS categorie,
-                       SUM(v.quantite * CAST(ROUND(p.pa * 1.2, 0) AS INTEGER)) AS ca_temporaire
+                       SUM(v.quantite * CASE WHEN c.prc_disabled THEN 0 ELSE CAST(ROUND(p.pa * 1.2, 0) AS INTEGER) END) AS ca_temporaire
                 FROM ventes v
                 JOIN produits p ON v.produit_id = p.id
                 JOIN categories c ON p.categorie_id = c.id
                 JOIN categories parent ON c.parent_id = parent.id
                 WHERE v.jour = ? AND v.deleted = 0 AND parent.nom = ?
                 GROUP BY c.nom
-            """,
+                """,
                 (jour, _OW_CATEGORY_PARENT),
             ).fetchall()
             return {str(r["categorie"]): int(r["ca_temporaire"] or 0) for r in rows}

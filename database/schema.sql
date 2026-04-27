@@ -22,6 +22,10 @@ CREATE TABLE IF NOT EXISTS categories (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
     nom TEXT NOT NULL UNIQUE,
     parent_id INTEGER,
+    pa_equals_pv BOOLEAN NOT NULL DEFAULT 0,
+    prc_disabled BOOLEAN NOT NULL DEFAULT 0,
+    quantity_infinite BOOLEAN NOT NULL DEFAULT 0,
+    dlv_disabled BOOLEAN NOT NULL DEFAULT 0,
     FOREIGN KEY (parent_id) REFERENCES categories(id)
 );
 
@@ -46,6 +50,11 @@ INSERT INTO categories (nom, parent_id) VALUES ('TelC', (SELECT id FROM categori
 INSERT INTO categories (nom, parent_id) VALUES ('Lub', (SELECT id FROM categories WHERE nom = 'Catégorie 2 - NOW (Not owners)')) ON CONFLICT(nom) DO NOTHING;
 INSERT INTO categories (nom, parent_id) VALUES ('Pea', (SELECT id FROM categories WHERE nom = 'Catégorie 2 - NOW (Not owners)')) ON CONFLICT(nom) DO NOTHING;
 INSERT INTO categories (nom, parent_id) VALUES ('Solaires', (SELECT id FROM categories WHERE nom = 'Catégorie 2 - NOW (Not owners)')) ON CONFLICT(nom) DO NOTHING;
+
+-- Set rule flags for Category 2 subcategories (NOW: PA=PV, No PRC, Unlimited quantity, No DLV)
+UPDATE categories 
+SET pa_equals_pv = 1, prc_disabled = 1, quantity_infinite = 1, dlv_disabled = 1 
+WHERE parent_id = (SELECT id FROM categories WHERE nom = 'Catégorie 2 - NOW (Not owners)');
 
 -- Sous-catégories Catégorie 3 - NONE: Zoth, Gaz
 INSERT INTO categories (nom, parent_id) VALUES ('Zoth', (SELECT id FROM categories WHERE nom = 'Catégorie 3 - NONE')) ON CONFLICT(nom) DO NOTHING;

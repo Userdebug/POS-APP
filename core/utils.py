@@ -8,6 +8,7 @@ __all__ = [
     "calculate_line_total",
     "normalize_product_line",
     "validate_quantity_against_stock",
+    "calculate_prc",
 ]
 
 
@@ -62,6 +63,21 @@ def calculate_line_total(
     return price * qte
 
 
+def calculate_prc(pa: int, prc_disabled: bool = False) -> int | None:
+    """Calculate PRC (Prix de Revient Calculé) based on PA and category rules.
+
+    Args:
+        pa: Purchase price (PA)
+        prc_disabled: If True, PRC is disabled for this category; returns None
+
+    Returns:
+        Calculated PRC as integer, or None if disabled
+    """
+    if prc_disabled:
+        return None
+    return int(round(pa * 1.2))
+
+
 def normalize_product_line(
     data: dict[str, Any],
     mode: str = "caisse",
@@ -84,7 +100,14 @@ def normalize_product_line(
     # Parse numeric fields
     pa = parse_grouped_int(data.get("pa", 0))
     pv = parse_grouped_int(data.get("pv", data.get("prix", pa)))
-    prc = parse_grouped_int(data.get("prc", round(pa * 1.2)))
+    # PRC: if prc provided and not None use it; if prc_disabled flag use None; else compute default
+    prc_raw = data.get("prc")
+    if prc_raw is None and data.get("prc_disabled"):
+        prc = None
+    elif prc_raw is not None:
+        prc = parse_grouped_int(prc_raw)
+    else:
+        prc = int(round(pa * 1.2))
 
     # Get and normalize category
     categorie = str(data.get("categorie", "")).strip()
@@ -102,6 +125,10 @@ def normalize_product_line(
         "pv": pv,
         "prc": prc,
         "qte": qte,
+        # Propagate category rule flags for downstream use
+        "prc_disabled": bool(data.get("prc_disabled", False)),
+        "quantity_infinite": bool(data.get("quantity_infinite", False)),
+        "pa_equals_pv": bool(data.get("pa_equals_pv", False)),
     }
 
 

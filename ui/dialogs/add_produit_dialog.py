@@ -33,16 +33,19 @@ class AddProduitDialog(QDialog):
         self,
         parent: QWidget | None = None,
         categories: list[tuple[int, str]] | None = None,
+        category_rules: dict[int, dict] | None = None,
         produit: dict | None = None,
     ):
         """
         Args:
             parent: Parent widget
             categories: List of (id, name) tuples for category dropdown
-            produit: Existing product data for edit mode (currently not used for edit)
+            category_rules: Dict mapping category_id to rule flags
+            produit: Existing product data for edit mode
         """
         super().__init__(parent)
         self.categories = categories or []
+        self.category_rules = category_rules or {}
         self.produit = produit
         self.is_edit_mode = produit is not None
 
@@ -87,8 +90,19 @@ class AddProduitDialog(QDialog):
         self.input_categorie.setMinimumHeight(INPUT_MIN_HEIGHT)
         for cat_id, cat_name in self.categories:
             self.input_categorie.addItem(cat_name, cat_id)
-        if self.categories:
+
+        # Pre-select category if in edit mode
+        if self.produit and self.produit.get("categorie_id"):
+            cat_id = self.produit["categorie_id"]
+            for i in range(self.input_categorie.count()):
+                if self.input_categorie.itemData(i) == cat_id:
+                    self.input_categorie.setCurrentIndex(i)
+                    break
+        elif self.categories:
             self.input_categorie.setCurrentIndex(0)
+
+        # Connect category change to update UI based on rules
+        self.input_categorie.currentIndexChanged.connect(self._on_category_changed)
         form.addRow("Catégorie *", self.input_categorie)
 
         # SKU field
@@ -107,6 +121,7 @@ class AddProduitDialog(QDialog):
         self.input_pa.setMinimumHeight(INPUT_MIN_HEIGHT)
         if produit:
             self.input_pa.setValue(produit.get("pa", 0))
+        self.input_pa.valueChanged.connect(self._on_pa_changed)
         self.input_pa.valueChanged.connect(self._update_prc_display)
         form.addRow("Prix Achat (PA)", self.input_pa)
 
@@ -131,6 +146,7 @@ class AddProduitDialog(QDialog):
         self.input_pv.setMinimumHeight(INPUT_MIN_HEIGHT)
         if produit:
             self.input_pv.setValue(produit.get("pv", 0))
+        self.input_pv.valueChanged.connect(self._on_pv_changed)
         form.addRow("Prix Vente (PV)", self.input_pv)
 
         # Prix de promotion (defaults to PA)
@@ -217,6 +233,9 @@ class AddProduitDialog(QDialog):
         # Focus on name field
         self.input_nom.setFocus()
 
+        # Apply initial category-based UI rules
+        self._on_category_changed()
+
     def _clear_error_styles(self):
         """Clear error styling from all input fields."""
         self.input_nom.setStyleSheet("")
@@ -252,6 +271,43 @@ class AddProduitDialog(QDialog):
 
         return True
 
+    def _get_current_category_id(self) -> int | None:
+        """Get the currently selected category ID."""
+        index = self.input_categorie.currentIndex()
+        if index >= 0:
+            return self.input_categorie.itemData(index)
+        return None
+
+    def _get_category_rules(self) -> dict:
+        """Get rules for the currently selected category."""
+        cat_id = self._get_current_category_id()
+        if cat_id is not None:
+            return self.category_rules.get(cat_id, {})
+        return {}
+
+    def _on_category_changed(self) -> None:
+        """Handle category selection change to apply category-specific rules."""
+        rules = self._get_category_rules()
+
+        # Handle PA = PV rule: sync values
+        if rules.get("pa_equals_pv"):
+            # Set PA to equal PV (or vice versa) to maintain equality
+            pv_value = self.input_pv.value()
+            self.input_pa.blockSignals(True)
+            self.input_pa.setValue(pv_value)
+            self.input_pa.blockSignals(False)
+            # Also update PRC display which depends on PA
+            self._update_prc_display()
+
+        # Update PRC display based on prc_disabled rule
+        self._update_prc_display()
+
+        # Handle DLV/DLC field: disable if not required for this category
+        if rules.get("dlv_disabled"):
+            self.input_dlv_dlc.setEnabled(False)
+        else:
+            self.input_dlv_dlc.setEnabled(True)
+
     def _on_accept(self):
         """Validate and accept the dialog."""
         if self.validate():
@@ -285,13 +341,41 @@ class AddProduitDialog(QDialog):
                 "QPushButton:hover { background-color: #4b5563; }"
             )
 
-    def _update_prc_display(self) -> None:
-        """Update the PRC display label based on current PA value."""
-        pa = self.input_pa.value()
-        prc = int(round(pa * 1.2))
-        from core.formatters import format_grouped_int
+    def _on_pa_changed(self, value: int) -> None:
+        """Handle PA value change to sync with PV if category requires."""
+        rules = self._get_category_rules()
+        if rules.get("pa_equals_pv"):
+            # Sync PV to match PA
+            self.input_pv.blockSignals(True)
+            self.input_pv.setValue(value)
+            self.input_pv.blockSignals(False)
+        self._update_prc_display()
 
-        self.lbl_prc.setText(f"{format_grouped_int(prc)} Ar")
+    def _on_pv_changed(self, value: int) -> None:
+        """Handle PV value change to sync with PA if category requires."""
+        rules = self._get_category_rules()
+        if rules.get("pa_equals_pv"):
+            # Sync PA to match PV
+            self.input_pa.blockSignals(True)
+            self.input_pa.setValue(value)
+            self.input_pa.blockSignals(False)
+
+    def _update_prc_display(self) -> None:
+        """Update the PRC display label based on current PA value and category rules."""
+        pa = self.input_pa.value()
+        rules = self._get_category_rules()
+
+        if rules.get("prc_disabled"):
+            display_text = "-"
+        else:
+            from core.utils import calculate_prc
+
+            prc = calculate_prc(pa, prc_disabled=False)
+            from core.formatters import format_grouped_int
+
+            display_text = f"{format_grouped_int(prc)} Ar" if prc is not None else "-"
+
+        self.lbl_prc.setText(display_text)
 
     def get_produit(self) -> dict:
         """Return the product data as a dictionary."""
@@ -300,14 +384,24 @@ class AddProduitDialog(QDialog):
             self.input_categorie.itemData(categorie_index) if categorie_index >= 0 else None
         )
 
+        # Get category rules for PA=PV enforcement
+        rules = self.category_rules.get(categorie_id, {}) if categorie_id else {}
+
+        pa = self.input_pa.value()
+        pv = self.input_pv.value()
+
+        # Enforce PA = PV if category rule applies
+        if rules.get("pa_equals_pv"):
+            pa = pv  # Force PA to equal PV
+
         result = {
             "nom": self.input_nom.text().strip(),
             "categorie": self.input_categorie.currentText().strip(),
             "categorie_id": categorie_id,
-            "pa": self.input_pa.value(),
-            "prc": int(round(self.input_pa.value() * 1.2)),
-            "pv": self.input_pv.value(),
-            "dlv_dlc": self.input_dlv_dlc.date().toString("dd/MM/yy"),
+            "pa": pa,
+            "prc": int(round(pa * 1.2)) if not rules.get("prc_disabled") else None,
+            "pv": pv,
+            "dlv_dlc": "" if rules.get("dlv_disabled") else self.input_dlv_dlc.date().toString("dd/MM/yy"),
             "description": self.input_description.toPlainText().strip(),
             "sku": self.input_sku.text().strip(),
             "en_promo": 1 if self._en_promo else 0,

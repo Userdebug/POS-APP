@@ -21,6 +21,24 @@ class SchemaInitializer:
         Args:
             connect: Function returning a sqlite3.Connection context.
         """
+        # Pre-migration: ensure categories table has required columns before running schema.sql
+        with connect() as conn:
+            # Only alter if categories table already exists (existing database)
+            cat_table_exists = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='categories'"
+            ).fetchone()
+            if cat_table_exists:
+                cat_cols = {row[1] for row in conn.execute("PRAGMA table_info(categories)").fetchall()}
+                if "pa_equals_pv" not in cat_cols:
+                    conn.execute("ALTER TABLE categories ADD COLUMN pa_equals_pv BOOLEAN NOT NULL DEFAULT 0")
+                if "prc_disabled" not in cat_cols:
+                    conn.execute("ALTER TABLE categories ADD COLUMN prc_disabled BOOLEAN NOT NULL DEFAULT 0")
+                if "quantity_infinite" not in cat_cols:
+                    conn.execute("ALTER TABLE categories ADD COLUMN quantity_infinite BOOLEAN NOT NULL DEFAULT 0")
+                if "dlv_disabled" not in cat_cols:
+                    conn.execute("ALTER TABLE categories ADD COLUMN dlv_disabled BOOLEAN NOT NULL DEFAULT 0")
+
+        # Execute full schema (creates tables if missing, populates data)
         schema = self.schema_path.read_text(encoding="utf-8")
         with connect() as conn:
             conn.executescript(schema)
@@ -36,7 +54,31 @@ class SchemaInitializer:
         Migre et nettoie Tcollecte, cree table Tsf pour rapports.
         """
         with connect() as conn:
-            # ... existing migrations for produits and ventes ...
+            # ---- Existing migrations for produits and ventes ----
+            # Add missing columns to produits table (legacy DB compatibility)
+            produits_cols = {row[1] for row in conn.execute("PRAGMA table_info(produits)").fetchall()}
+            if "en_promo" not in produits_cols:
+                conn.execute("ALTER TABLE produits ADD COLUMN en_promo INTEGER NOT NULL DEFAULT 0")
+            if "prix_promo" not in produits_cols:
+                conn.execute("ALTER TABLE produits ADD COLUMN prix_promo INTEGER DEFAULT 0")
+            # Ensure categorie_id exists (for indexes/FKs, used by schema.sql later)
+            if "categorie_id" not in produits_cols:
+                conn.execute("ALTER TABLE produits ADD COLUMN categorie_id INTEGER")
+
+            # ---- Migration: add missing columns to categories ----
+            cat_table_exists = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='categories'"
+            ).fetchone()
+            if cat_table_exists:
+                cat_cols = {row[1] for row in conn.execute("PRAGMA table_info(categories)").fetchall()}
+                if "pa_equals_pv" not in cat_cols:
+                    conn.execute("ALTER TABLE categories ADD COLUMN pa_equals_pv BOOLEAN NOT NULL DEFAULT 0")
+                if "prc_disabled" not in cat_cols:
+                    conn.execute("ALTER TABLE categories ADD COLUMN prc_disabled BOOLEAN NOT NULL DEFAULT 0")
+                if "quantity_infinite" not in cat_cols:
+                    conn.execute("ALTER TABLE categories ADD COLUMN quantity_infinite BOOLEAN NOT NULL DEFAULT 0")
+                if "dlv_disabled" not in cat_cols:
+                    conn.execute("ALTER TABLE categories ADD COLUMN dlv_disabled BOOLEAN NOT NULL DEFAULT 0")
 
             # Migration pour Tcollecte (renamed from analyse_journaliere_categories)
             tcollecte_exists = conn.execute(
@@ -128,9 +170,17 @@ class SchemaInitializer:
             # ---- NEW MIGRATION: Tcollecte cleanup and Tsf creation ----
             # Check if already migrated to avoid re-running
             migration_key = "TCOLLECTE_MIGRATION_V2_DONE"
-            param_val = conn.execute(
-                "SELECT valeur FROM parametres WHERE cle = ?", (migration_key,)
+            # Guard: ensure parametres table exists before querying
+            param_table_exists = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type='table' AND name='parametres'"
             ).fetchone()
+            if param_table_exists:
+                param_val = conn.execute(
+                    "SELECT valeur FROM parametres WHERE cle = ?", (migration_key,)
+                ).fetchone()
+            else:
+                param_val = None
+
             if param_val and param_val["valeur"] == "1":
                 # Already done, skip
                 pass

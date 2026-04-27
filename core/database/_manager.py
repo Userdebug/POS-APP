@@ -764,7 +764,16 @@ class DatabaseManager:
         self.expenses.delete_expense(expense_id)
 
     def decrement_stock(self, produit_id: int, quantite: int) -> None:
-        """Decrements the stock_boutique for a product."""
+        """Decrements the stock_boutique for a product.
+
+        Skips decrement for products in categories with quantity_infinite flag.
+        """
+        # Check if product belongs to infinite quantity category
+        produit = self.get_produit_by_id(produit_id)
+        if produit and produit.get("quantity_infinite"):
+            logger.debug(f"Skipping stock decrement for unlimited quantity product {produit_id}")
+            return
+
         with self._connect() as conn:
             conn.execute(
                 """
@@ -781,14 +790,29 @@ class DatabaseManager:
         Args:
             items: List of dicts with 'id' (produit_id) and 'qte' (quantite) keys.
                    Only items with valid produit_id and positive quantite are processed.
+                   Items with infinite quantity (category rule) are skipped.
         """
         if not items:
             return
 
-        # Filter valid items
-        valid_items = [
-            (item["qte"], item["id"]) for item in items if item.get("id") and item.get("qte", 0) > 0
-        ]
+        # Filter valid items and exclude infinite quantity products
+        valid_items = []
+        infinite_product_ids = set()
+
+        for item in items:
+            produit_id = item.get("id")
+            quantite = item.get("qte", 0)
+            if not produit_id or quantite <= 0:
+                continue
+            # Check if product has infinite quantity category
+            produit = self.get_produit_by_id(produit_id)
+            if produit and produit.get("quantity_infinite"):
+                logger.debug(
+                    f"Skipping stock decrement for unlimited quantity product {produit_id}"
+                )
+                infinite_product_ids.add(produit_id)
+                continue
+            valid_items.append((quantite, produit_id))
 
         if not valid_items:
             return

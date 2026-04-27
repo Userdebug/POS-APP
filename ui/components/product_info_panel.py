@@ -210,12 +210,17 @@ class ProduitInfoPanel(QGroupBox):
         db = DatabaseManager()
         with db._connect() as conn:
             rows = conn.execute(
-                "SELECT id, nom, parent_id FROM categories ORDER BY parent_id NULLS FIRST, nom"
+                "SELECT id, nom, parent_id, dlv_disabled FROM categories ORDER BY parent_id NULLS FIRST, nom"
             ).fetchall()
         categories = []
         for row in rows:
             if row[0] is not None:
-                categories.append({"id": row[0], "nom": row[1], "parent_id": row[2]})
+                categories.append({
+                    "id": row[0],
+                    "nom": row[1],
+                    "parent_id": row[2],
+                    "dlv_disabled": bool(row[3]),
+                })
         self.input_categorie.clear()
         for cat in categories:
             if cat["parent_id"] is None:
@@ -286,11 +291,13 @@ class ProduitInfoPanel(QGroupBox):
                     if isinstance(parent_name, dict):
                         parent_name = parent_name.get("nom", "")
                     self._produit_actuel["categorie"] = parent_name
-                    return
+                self._update_dlv_enabled_from_current()
+                return
         # If parent selected directly, update produit
         if self._editing and self._produit_actuel:
             cat_name = data.get("nom", self.input_categorie.currentText().strip())
             self._produit_actuel["categorie"] = cat_name
+        self._update_dlv_enabled_from_current()
 
     def _start_edit(self):
         if self._produit_actuel is None:
@@ -301,6 +308,7 @@ class ProduitInfoPanel(QGroupBox):
         self.btn_edit.setEnabled(False)
         self.btn_save.setEnabled(True)
         self._set_editable(True)
+        self._update_dlv_enabled_from_current()
         self.input_nom.setFocus()
 
     def _save_edit(self):
@@ -310,13 +318,23 @@ class ProduitInfoPanel(QGroupBox):
         pv = max(0, parse_grouped_int(self.input_pv.text().strip(), default=0))
         prix_promo = max(0, parse_grouped_int(self.input_prix_promo.text().strip(), default=pa))
         min_qte = max(0, parse_grouped_int(self.input_min_qte.text().strip(), default=2))
+
+        # Get category rules
+        cat_data = self.input_categorie.currentData()
+        dlv_disabled = False
+        if isinstance(cat_data, dict):
+            dlv_disabled = bool(cat_data.get("dlv_disabled", False))
+
         updated = dict(self._produit_actuel)
         updated["nom"] = self.input_nom.text().strip() or str(self._produit_actuel.get("nom", ""))
         updated["categorie"] = self.input_categorie.currentText().strip() or str(
             self._produit_actuel.get("categorie", "Sans categorie")
         )
-        dlv_date = self.input_dlv.date()
-        updated["dlv_dlc"] = dlv_date.toString("yyyy-MM-dd")
+        if dlv_disabled:
+            updated["dlv_dlc"] = ""
+        else:
+            dlv_date = self.input_dlv.date()
+            updated["dlv_dlc"] = dlv_date.toString("yyyy-MM-dd")
         updated["pa"] = pa
         updated["prc"] = int(round(pa * 1.2))
         updated["pv"] = pv
@@ -366,3 +384,16 @@ class ProduitInfoPanel(QGroupBox):
                 "}"
                 "QPushButton:hover { background-color: #4b5563; }"
             )
+
+    def _update_dlv_enabled_from_current(self) -> None:
+        """Enable or disable the DLV/DLC input based on the current category's rule."""
+        idx = self.input_categorie.currentIndex()
+        if idx < 0:
+            self.input_dlv.setEnabled(True)
+            return
+        data = self.input_categorie.itemData(idx)
+        if isinstance(data, dict):
+            dlv_disabled = data.get("dlv_disabled", False)
+            self.input_dlv.setEnabled(not dlv_disabled)
+        else:
+            self.input_dlv.setEnabled(True)

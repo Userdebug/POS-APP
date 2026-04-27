@@ -309,19 +309,36 @@ class ProduitsTable(QGroupBox):
         """Update a single table row without recreating widgets."""
         b = int(produit.get("b", 0))
         r = int(produit.get("r", 0))
-        pa = int(produit.get("pa", produit.get("prc", 0)))
-        prc = int(produit.get("prc", round(pa * 1.2)))
+        pa = int(produit.get("pa", 0))
+        # Handle PRC: may be None if category has prc_disabled
+        prc_raw = produit.get("prc")
+        if prc_raw is None:
+            prc_display = "-"
+        else:
+            prc_display = format_grouped_int(int(prc_raw))
+
+        pa_display = format_grouped_int(pa)
+        pv_display = format_grouped_int(int(produit.get("pv", 0)))
+        
+        # For infinite quantity products, show the actual numbers (set to 100)
+        # The quantity_infinite flag ensures they're always available
+        b_display = format_grouped_int(b)
+        r_display = format_grouped_int(r)
+        stock_display = format_grouped_int(b + r)
+            
+        dlv_display = format_dlv_dlc_date(str(produit.get("dlv_dlc", "")))
+
         values = [
             str(produit.get("id", "")),
             str(produit.get("nom", "")),
             str(produit.get("categorie", "Sans categorie")),
-            format_grouped_int(pa),
-            format_grouped_int(prc),
-            format_grouped_int(produit.get("pv", 0)),
-            format_grouped_int(b),
-            format_grouped_int(r),
-            format_grouped_int(b + r),
-            format_dlv_dlc_date(str(produit.get("dlv_dlc", ""))),
+            pa_display,
+            prc_display,
+            pv_display,
+            b_display,
+            r_display,
+            stock_display,
+            dlv_display,
         ]
         for col, value in enumerate(values):
             item = self.table.item(row, col)
@@ -341,19 +358,40 @@ class ProduitsTable(QGroupBox):
         """Populate a table row (for full rebuild)."""
         b = int(produit.get("b", 0))
         r = int(produit.get("r", 0))
-        pa = int(produit.get("pa", produit.get("prc", 0)))
-        prc = int(produit.get("prc", round(pa * 1.2)))
+        pa = int(produit.get("pa", 0))
+        prc_raw = produit.get("prc")
+        if prc_raw is None:
+            prc_display = "-"
+        else:
+            prc_display = format_grouped_int(int(prc_raw))
+
+        pa_display = format_grouped_int(pa)
+        pv_display = format_grouped_int(int(produit.get("pv", 0)))
+        
+        # Show "-" for infinite quantity products
+        is_infinite = bool(produit.get("quantity_infinite", False))
+        if is_infinite:
+            b_display = "-"
+            r_display = "-"
+            stock_display = "-"
+        else:
+            b_display = format_grouped_int(b)
+            r_display = format_grouped_int(r)
+            stock_display = format_grouped_int(b + r)
+            
+        dlv_display = format_dlv_dlc_date(str(produit.get("dlv_dlc", "")))
+
         values = [
             str(produit.get("id", "")),
             str(produit.get("nom", "")),
             str(produit.get("categorie", "Sans categorie")),
-            format_grouped_int(pa),
-            format_grouped_int(prc),
-            format_grouped_int(produit.get("pv", 0)),
-            format_grouped_int(b),
-            format_grouped_int(r),
-            format_grouped_int(b + r),
-            format_dlv_dlc_date(str(produit.get("dlv_dlc", ""))),
+            pa_display,
+            prc_display,
+            pv_display,
+            b_display,
+            r_display,
+            stock_display,
+            dlv_display,
         ]
         for col, value in enumerate(values):
             item = QTableWidgetItem(value)
@@ -399,19 +437,40 @@ class ProduitsTable(QGroupBox):
 
         b = int(produit.get("b", 0))
         r = int(produit.get("r", 0))
-        pa = int(produit.get("pa", produit.get("prc", 0)))
-        prc = int(produit.get("prc", round(pa * 1.2)))
+        pa = int(produit.get("pa", 0))
+        prc_raw = produit.get("prc")
+        if prc_raw is None:
+            prc_display = "-"
+        else:
+            prc_display = format_grouped_int(int(prc_raw))
+
+        pa_display = format_grouped_int(pa)
+        pv_display = format_grouped_int(int(produit.get("pv", 0)))
+        
+        # Show "-" for infinite quantity products
+        is_infinite = bool(produit.get("quantity_infinite", False))
+        if is_infinite:
+            b_display = "-"
+            r_display = "-"
+            stock_display = "-"
+        else:
+            b_display = format_grouped_int(b)
+            r_display = format_grouped_int(r)
+            stock_display = format_grouped_int(b + r)
+            
+        dlv_display = format_dlv_dlc_date(str(produit.get("dlv_dlc", "")))
+
         values = [
             str(produit.get("id", "")),
             str(produit.get("nom", "")),
             str(produit.get("categorie", "Sans categorie")),
-            format_grouped_int(pa),
-            format_grouped_int(prc),
-            format_grouped_int(produit.get("pv", 0)),
-            format_grouped_int(b),
-            format_grouped_int(r),
-            format_grouped_int(b + r),
-            format_dlv_dlc_date(str(produit.get("dlv_dlc", ""))),
+            pa_display,
+            prc_display,
+            pv_display,
+            b_display,
+            r_display,
+            stock_display,
+            dlv_display,
         ]
         for col, value in enumerate(values):
             item = QTableWidgetItem(value)
@@ -471,7 +530,9 @@ class ProduitsTable(QGroupBox):
         return all(term in base_search for term in self._search_text.split())
 
     def _has_quantity(self, produit: dict) -> bool:
-        """Check if product has quantity (b + r > 0)."""
+        """Check if product has quantity (b + r > 0) or is infinite quantity."""
+        if bool(produit.get("quantity_infinite", False)):
+            return True
         return (int(produit.get("b", 0)) + int(produit.get("r", 0))) > 0
 
     def _get_filtered_produits(self) -> list[dict]:

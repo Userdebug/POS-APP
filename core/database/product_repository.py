@@ -40,6 +40,19 @@ class ProductRepository:
                     categories.append(cat_name)
                 category_map = self._resolve_category_ids(conn, categories)
 
+                # Fetch category rules for all involved categories
+                category_ids = [int(cid) for cid in category_map.values()]
+                rules_by_id: dict[int, dict] = {}
+                if category_ids:
+                    placeholders = ",".join("?" for _ in category_ids)
+                    rows = conn.execute(
+                        f"SELECT id, pa_equals_pv, prc_disabled, quantity_infinite "
+                        f"FROM categories WHERE id IN ({placeholders})",
+                        category_ids,
+                    ).fetchall()
+                    for row in rows:
+                        rules_by_id[int(row["id"])] = dict(row)
+
                 for produit in produits:
                     cat_name = str(produit.get("categorie", DEFAULT_CATEGORY_NAME)).strip()
                     if not cat_name:
@@ -48,8 +61,33 @@ class ProductRepository:
 
                     product_id = produit.get("id")
                     en_promo = int(produit.get("en_promo", 0))
-                    pa_val = int(produit.get("pa", produit.get("prc", 0)))
+                    pv_val = int(produit.get("pv", 0))
+
+                    # Apply category rule: PA = PV if applicable
+                    rules = rules_by_id.get(cat_id, {})
+                    if rules.get("pa_equals_pv"):
+                        pa_val = pv_val  # Force PA to equal PV
+                    else:
+                        pa_val = int(produit.get("pa", produit.get("prc", 0)))
+
                     prix_promo = int(produit.get("prix_promo", pa_val))
+
+                    # Build values tuple for both insert and update cases
+                    values = (
+                        int(product_id) if product_id is not None else None,
+                        str(produit.get("nom", "")),
+                        int(cat_id),
+                        pv_val,
+                        pa_val,
+                        int(produit.get("b", 0)),
+                        int(produit.get("r", 0)),
+                        str(produit.get("dlv_dlc", "")),
+                        str(produit.get("description", "") or ""),
+                        str(produit.get("sku", "") or ""),
+                        en_promo,
+                        prix_promo,
+                    )
+
                     if product_id is not None:
                         conn.execute(
                             """
@@ -72,20 +110,7 @@ class ProductRepository:
                                 prix_promo = excluded.prix_promo,
                                 updated_at = datetime('now')
                             """,
-                            (
-                                int(product_id),
-                                str(produit.get("nom", "")),
-                                int(cat_id),
-                                int(produit.get("pv", 0)),
-                                pa_val,
-                                int(produit.get("b", 0)),
-                                int(produit.get("r", 0)),
-                                str(produit.get("dlv_dlc", "")),
-                                str(produit.get("description", "") or ""),
-                                str(produit.get("sku", "") or ""),
-                                en_promo,
-                                prix_promo,
-                            ),
+                            values,
                         )
                     else:
                         conn.execute(
@@ -96,19 +121,7 @@ class ProductRepository:
                                  en_promo, prix_promo)
                             VALUES (NULL, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                             """,
-                            (
-                                str(produit.get("nom", "")),
-                                int(cat_id),
-                                int(produit.get("pv", 0)),
-                                pa_val,
-                                int(produit.get("b", 0)),
-                                int(produit.get("r", 0)),
-                                str(produit.get("dlv_dlc", "")),
-                                str(produit.get("description", "") or ""),
-                                str(produit.get("sku", "") or ""),
-                                en_promo,
-                                prix_promo,
-                            ),
+                            values[1:],  # skip the None for id
                         )
         except sqlite3.Error as exc:
             raise RuntimeError(f"echec upsert_products: {exc}") from exc
@@ -121,7 +134,6 @@ class ProductRepository:
                     p.nom,
                     p.pv,
                     p.pa,
-                    CAST(ROUND(p.pa * 1.2, 0) AS INTEGER) AS prc,
                     p.stock_boutique AS b,
                     p.stock_reserve AS r,
                     p.dlv_dlc,
@@ -130,12 +142,26 @@ class ProductRepository:
                     p.sku,
                     p.en_promo,
                     p.prix_promo,
-                    COALESCE(c.nom, 'Sans categorie') AS categorie
+                    COALESCE(c.nom, 'Sans categorie') AS categorie,
+                    c.pa_equals_pv,
+                    c.prc_disabled,
+                    c.quantity_infinite
                 FROM produits p
                 LEFT JOIN categories c ON c.id = p.categorie_id
                 ORDER BY p.id ASC
                 """).fetchall()
-            return [dict(row) for row in rows]
+            result = []
+            for row in rows:
+                product_dict = dict(row)
+                # Calculate PRC based on category rules
+                prc_disabled = bool(product_dict.get("prc_disabled", 0))
+                if prc_disabled:
+                    product_dict["prc"] = None
+                else:
+                    pa = product_dict.get("pa", 0) or 0
+                    product_dict["prc"] = int(round(pa * 1.2))
+                result.append(product_dict)
+            return result
 
     def get_produit_by_id(self, produit_id: int) -> dict[str, Any] | None:
         """Get a single product by ID.
@@ -154,20 +180,32 @@ class ProductRepository:
                     p.nom,
                     p.pv,
                     p.pa,
-                    CAST(ROUND(p.pa * 1.2, 0) AS INTEGER) AS prc,
                     p.stock_boutique AS qte_stock,
                     p.stock_reserve AS r,
                     p.dlv_dlc,
                     p.en_promo,
                     p.prix_promo,
-                    COALESCE(c.nom, 'Sans categorie') AS categorie
+                    COALESCE(c.nom, 'Sans categorie') AS categorie,
+                    c.pa_equals_pv,
+                    c.prc_disabled,
+                    c.quantity_infinite
                 FROM produits p
                 LEFT JOIN categories c ON c.id = p.categorie_id
                 WHERE p.id = ?
                 """,
                 (produit_id,),
             ).fetchone()
-            return dict(row) if row else None
+            if row:
+                result = dict(row)
+                # Calculate PRC based on category rules
+                prc_disabled = bool(result.get("prc_disabled", 0))
+                if prc_disabled:
+                    result["prc"] = None
+                else:
+                    pa = result.get("pa", 0) or 0
+                    result["prc"] = int(round(pa * 1.2))
+                return result
+            return None
 
     def update_derniere_verification(self, produit_id: int, date_verification: str) -> None:
         """Update the derniere_verification date for a product.
